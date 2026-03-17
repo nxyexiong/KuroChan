@@ -8,6 +8,7 @@
 import { setStatus } from './ui.js';
 import { loadModel } from './model/model.js';
 import { configureLLM } from './llm/llm.js';
+import { configureTTS } from './tts/tts.js';
 
 export async function initCore() {
   const config = await window.electronAPI.getConfig();
@@ -20,6 +21,9 @@ export async function initCore() {
 
   // ── LLM ───────────────────────────────────────────────────────────────────
   initLLM(config.llm ?? {});
+
+  // ── TTS ───────────────────────────────────────────────────────────────────
+  initTTS(config.tts ?? {});
 }
 
 // ── Section initialisers ──────────────────────────────────────────────────────
@@ -38,4 +42,8 @@ async function initModel({ modelPath }) {
 
 function initLLM(llmConfig) {
   configureLLM(llmConfig);
+}
+
+function initTTS(ttsConfig) {
+  configureTTS(ttsConfig);
 }

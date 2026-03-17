@@ -17,7 +17,10 @@
  */
 
 import { OpenAILLMService } from './openai-llm-service.js';
-
+const SERVICES = {
+  'openai': OpenAILLMService,
+};
+const DEFAULT_SERVICE = 'openai';
 // ── Minimal event emitter used as the output stream ───────────────────────────
 
 class OutputStream {
@@ -44,7 +47,7 @@ class OutputStream {
 
 // ── Module state ──────────────────────────────────────────────────────────────
 
-const service = new OpenAILLMService();
+let service = new OpenAILLMService();
 
 /** Output stream — listen to 'data', 'end', and 'error' events. */
 export const outputStream = new OutputStream();
@@ -53,12 +56,20 @@ export const outputStream = new OutputStream();
 
 /**
  * Configure the underlying LLM service.
- * Must be called before the first `input()` call.
- * Receives the textCompletion section of config directly.
- * @param {{ apiKey: string, model?: string }} textCompletionConfig
+ * Selects the active service from llmConfig.service, then passes the full
+ * llmConfig opaquely to the service's configure() method.
+ * @param {{ service?: string, openai?: Object }} llmConfig
  */
-export function configureLLM(textCompletionConfig) {
-  service.configure(textCompletionConfig);
+export function configureLLM(llmConfig) {
+  const key = llmConfig?.service || DEFAULT_SERVICE;
+  const ServiceClass = SERVICES[key];
+  if (!ServiceClass) {
+    console.warn(`LLM: unknown service "${key}", falling back to "${DEFAULT_SERVICE}"`);
+    service = new SERVICES[DEFAULT_SERVICE]();
+  } else {
+    service = new ServiceClass();
+  }
+  service.configure(llmConfig);
 }
 
 /**

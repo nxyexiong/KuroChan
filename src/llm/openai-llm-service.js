@@ -13,7 +13,8 @@ export class OpenAILLMService extends LLMService {
     this._model  = 'gpt-4o';
   }
 
-  configure({ apiKey, model } = {}) {
+  configure({ openai = {} } = {}) {
+    const { apiKey, model } = openai;
     if (apiKey) this._apiKey = apiKey;
     if (model)  this._model  = model;
   }
