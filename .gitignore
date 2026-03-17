@@ -1,3 +1,10 @@
 node_modules/
 dist/
 *.log
+
+# CMake build output
+third_party/build/
+
+# Compiled DLL and model (large binaries — download/build locally)
+resources/whisper/*.dll
+resources/whisper/*.bin

@@ -1,0 +1,35 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Attach to Electron main",
+      "type": "node",
+      "request": "attach",
+      "port": 9229,
+      "restart": true,
+      "timeout": 30000
+    },
+    {
+      "name": "Attach to Electron renderer",
+      "type": "chrome",
+      "request": "attach",
+      "port": 9222,
+      "webRoot": "${workspaceFolder}"
+    },
+    {
+      "name": "Debug (main + renderer)",
+      "type": "node",
+      "request": "attach",
+      "port": 9229,
+      "restart": true,
+      "compounds": []
+    }
+  ],
+  "compounds": [
+    {
+      "name": "Electron: main + renderer",
+      "configurations": ["Attach to Electron main", "Attach to Electron renderer"],
+      "stopAll": true
+    }
+  ]
+}

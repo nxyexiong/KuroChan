@@ -21,6 +21,14 @@ const DEFAULTS = {
       speed: 1,
     },
   },
+  stt: {
+    service: 'whisper-local',
+    whisper: {
+      modelPath: 'resources/whisper/ggml-base.en.bin',
+      nThreads:  4,
+      language:  'en',
+    },
+  },
 };
 
 const MODAL_HTML = `
@@ -108,6 +116,37 @@ const MODAL_HTML = `
       </div>
     </details>
 
+    <details class="settings-section" open>
+      <summary class="settings-section-title">STT</summary>
+      <div class="settings-section-body">
+      <label for="stt-service-select">Service</label>
+      <div class="input-row">
+        <select id="stt-service-select">
+          <option value="">— none —</option>
+          <option value="whisper-local">Whisper (local)</option>
+        </select>
+      </div>
+      <details class="settings-subsection" open>
+        <summary class="settings-subsection-title">Whisper (local)</summary>
+        <div class="settings-subsection-body">
+        <label for="stt-whisper-model-path-input">Model file <span class="settings-hint">(.bin from huggingface.co/ggerganov/whisper.cpp)</span></label>
+        <div class="input-row">
+          <input type="text" id="stt-whisper-model-path-input" placeholder="default: resources/whisper/ggml-base.en.bin" />
+          <button class="btn-modal" id="btn-browse-whisper-model">Browse…</button>
+        </div>
+        <label for="stt-whisper-threads-input">CPU threads <span class="settings-hint">(1–16)</span></label>
+        <div class="input-row">
+          <input type="number" id="stt-whisper-threads-input" min="1" max="16" step="1" placeholder="default: 4" />
+        </div>
+        <label for="stt-whisper-language-input">Language <span class="settings-hint">(ISO 639-1 code, e.g. en·ja·zh·fr)</span></label>
+        <div class="input-row">
+          <input type="text" id="stt-whisper-language-input" maxlength="10" placeholder="default: en" />
+        </div>
+        </div>
+      </details>
+      </div>
+    </details>
+
     </div>
 
     <div class="modal-actions">
@@ -136,6 +175,11 @@ export function initSettings() {
   const browseBtn                = document.getElementById('btn-browse');
   const saveBtn        = document.getElementById('btn-settings-save');
   const cancelBtn      = document.getElementById('btn-settings-cancel');
+  const sttServiceSelect          = document.getElementById('stt-service-select');
+  const sttWhisperModelPathInput  = document.getElementById('stt-whisper-model-path-input');
+  const sttWhisperThreadsInput    = document.getElementById('stt-whisper-threads-input');
+  const sttWhisperLanguageInput   = document.getElementById('stt-whisper-language-input');
+  const browseWhisperModelBtn     = document.getElementById('btn-browse-whisper-model');
 
   document.getElementById('btn-settings').addEventListener('click', async () => {
     const config = await window.electronAPI.getConfig();
@@ -154,6 +198,12 @@ export function initSettings() {
     ttsOpenaiModelInput.value  = ttsOpenai.model      || DEFAULTS.tts.openai.model;
     ttsOpenaiVoiceInput.value  = ttsOpenai.voice      || DEFAULTS.tts.openai.voice;
     ttsOpenaiSpeedInput.value  = ttsOpenai.speed      ?? DEFAULTS.tts.openai.speed;
+    const stt        = config.stt ?? {};
+    const sttWhisper = stt.whisper ?? {};
+    sttServiceSelect.value         = stt.service           || DEFAULTS.stt.service;
+    sttWhisperModelPathInput.value = sttWhisper.modelPath  || DEFAULTS.stt.whisper.modelPath;
+    sttWhisperThreadsInput.value   = sttWhisper.nThreads   ?? DEFAULTS.stt.whisper.nThreads;
+    sttWhisperLanguageInput.value  = sttWhisper.language   || DEFAULTS.stt.whisper.language;
     modal.classList.remove('hidden');
   });
 
@@ -162,6 +212,14 @@ export function initSettings() {
   browseBtn.addEventListener('click', async () => {
     const dir = await window.electronAPI.openFolderDialog();
     if (dir) modelDirInput.value = dir;
+  });
+
+  browseWhisperModelBtn.addEventListener('click', async () => {
+    const file = await window.electronAPI.openFileDialog({
+      title:   'Select Whisper GGML model',
+      filters: [{ name: 'GGML model', extensions: ['bin'] }],
+    });
+    if (file) sttWhisperModelPathInput.value = file;
   });
 
   saveBtn.addEventListener('click', async () => {
@@ -185,6 +243,14 @@ export function initSettings() {
           model:  ttsOpenaiModelInput.value.trim()  || DEFAULTS.tts.openai.model,
           voice:  ttsOpenaiVoiceInput.value.trim()  || DEFAULTS.tts.openai.voice,
           speed:  ttsOpenaiSpeedInput.value !== '' ? Number(ttsOpenaiSpeedInput.value) : DEFAULTS.tts.openai.speed,
+        },
+      },
+      stt: {
+        service: sttServiceSelect.value || DEFAULTS.stt.service,
+        whisper: {
+          modelPath: sttWhisperModelPathInput.value.trim() || DEFAULTS.stt.whisper.modelPath,
+          nThreads:  sttWhisperThreadsInput.value !== '' ? Number(sttWhisperThreadsInput.value) : DEFAULTS.stt.whisper.nThreads,
+          language:  sttWhisperLanguageInput.value.trim() || DEFAULTS.stt.whisper.language,
         },
       },
     });
