@@ -19,7 +19,7 @@ export class OpenAILLMService extends LLMService {
     if (model)  this._model  = model;
   }
 
-  stream(message, onChunk, onDone, onError) {
+  stream(messages, onChunk, onDone, onError) {
     if (!this._apiKey) {
       onError(new Error('OpenAI API key is not set. Add it in Settings.'));
       return;
@@ -33,7 +33,7 @@ export class OpenAILLMService extends LLMService {
       },
       body: JSON.stringify({
         model:    this._model,
-        messages: [{ role: 'user', content: message }],
+        messages,
         stream:   true,
       }),
     })

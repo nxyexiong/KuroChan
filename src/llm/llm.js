@@ -49,6 +49,9 @@ class OutputStream {
 
 let service = new OpenAILLMService();
 
+/** Conversation history — array of { role, content } objects. */
+let history = [];
+
 /** Output stream — listen to 'data', 'end', and 'error' events. */
 export const outputStream = new OutputStream();
 
@@ -74,14 +77,39 @@ export function configureLLM(llmConfig) {
 
 /**
  * Send a text message to the LLM.
+ * The message is appended to history; the assistant reply is collected and
+ * appended once the stream completes.
  * Emits 'data' for each streamed chunk, 'end' on completion, 'error' on failure.
  * @param {string} text
  */
 export function input(text) {
+  history.push({ role: 'user', content: text });
+
+  let assistantReply = '';
+
   service.stream(
-    text,
-    (chunk) => outputStream.emit('data', chunk),
-    ()      => outputStream.emit('end'),
-    (err)   => outputStream.emit('error', err),
+    history,
+    (chunk) => {
+      assistantReply += chunk;
+      outputStream.emit('data', chunk);
+    },
+    () => {
+      if (assistantReply) {
+        history.push({ role: 'assistant', content: assistantReply });
+      }
+      outputStream.emit('end');
+    },
+    (err) => {
+      // Remove the user message that failed so history stays consistent
+      history.pop();
+      outputStream.emit('error', err);
+    },
   );
+}
+
+/**
+ * Clear the conversation history.
+ */
+export function clearHistory() {
+  history = [];
 }

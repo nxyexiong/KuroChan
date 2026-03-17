@@ -12,14 +12,14 @@ export class LLMService {
   }
 
   /**
-   * Stream a response for the given message.
-   * @param {string} message
+   * Stream a response for the given conversation history.
+   * @param {{ role: string, content: string }[]} messages  full conversation history
    * @param {(chunk: string) => void} onChunk  called for each streamed text chunk
    * @param {() => void} onDone                called when the stream ends
    * @param {(err: Error) => void} onError     called on error
    * @returns {void}
    */
-  stream(message, onChunk, onDone, onError) {
+  stream(messages, onChunk, onDone, onError) {
     throw new Error('LLMService.stream() must be implemented');
   }
 }

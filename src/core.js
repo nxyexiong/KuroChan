@@ -7,8 +7,10 @@
 
 import { setStatus } from './ui.js';
 import { loadModel } from './model/model.js';
-import { configureLLM } from './llm/llm.js';
+import { configureLLM, input as llmInput, outputStream as llmOutputStream } from './llm/llm.js';
 import { configureTTS } from './tts/tts.js';
+import { BuiltinChatService } from './chat/builtin-chat-service.js';
+import { initChat } from './chat/chat.js';
 
 export async function initCore() {
   const config = await window.electronAPI.getConfig();
@@ -24,6 +26,9 @@ export async function initCore() {
 
   // ── TTS ───────────────────────────────────────────────────────────────────
   initTTS(config.tts ?? {});
+
+  // ── Chat ──────────────────────────────────────────────────────────────────
+  initChatModule();
 }
 
 // ── Section initialisers ──────────────────────────────────────────────────────
@@ -46,4 +51,9 @@ function initLLM(llmConfig) {
 
 function initTTS(ttsConfig) {
   configureTTS(ttsConfig);
+}
+
+function initChatModule() {
+  const service = new BuiltinChatService(llmInput, llmOutputStream);
+  initChat(service);
 }
