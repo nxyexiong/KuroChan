@@ -46,8 +46,8 @@ export function initChat(service) {
   sendBtn.addEventListener('click', send);
 
   textarea.addEventListener('keydown', (e) => {
-    // Ctrl+Enter or Shift+Enter sends; plain Enter inserts newline
-    if (e.key === 'Enter' && (e.ctrlKey || e.shiftKey)) {
+    // Enter sends; Shift+Enter inserts newline
+    if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       send();
     }

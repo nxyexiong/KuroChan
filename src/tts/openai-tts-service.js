@@ -19,6 +19,7 @@ export class OpenAITTSService extends TTSService {
     this._audio    = null;
     this._blobUrl  = null;
     this._rafId    = null;
+    this._reader   = null;  // fetch stream reader, cancelled on stop()
   }
 
   configure({ openai = {} } = {}) {
@@ -58,11 +59,6 @@ export class OpenAITTSService extends TTSService {
           throw new Error(`OpenAI TTS error ${response.status}: ${msg}`);
         }
 
-        // Use a Blob URL so the browser decodes MP3 natively without blocking
-        const blob    = await response.blob();
-        const blobUrl = URL.createObjectURL(blob);
-        this._blobUrl = blobUrl;
-
         // Lazily create AudioContext
         if (!this._audioCtx) {
           this._audioCtx = new AudioContext();
@@ -71,17 +67,22 @@ export class OpenAITTSService extends TTSService {
           await this._audioCtx.resume();
         }
 
-        // <audio> element handles decoding; we tap it for volume via Web Audio
-        const audio = new Audio(blobUrl);
+        // Stream MP3 via MediaSource so playback starts with the first chunks
+        // instead of waiting for the entire file to download.
+        const ms     = new MediaSource();
+        const msUrl  = URL.createObjectURL(ms);
+        this._blobUrl = msUrl;
+
+        const audio = new Audio(msUrl);
         this._audio = audio;
 
-        const mediaSource = this._audioCtx.createMediaElementSource(audio);
-        const analyser    = this._audioCtx.createAnalyser();
+        const webAudioSource = this._audioCtx.createMediaElementSource(audio);
+        const analyser       = this._audioCtx.createAnalyser();
         analyser.fftSize = 256;
         analyser.smoothingTimeConstant = 0.4;
         const timeDomain = new Uint8Array(analyser.fftSize);
 
-        mediaSource.connect(analyser);
+        webAudioSource.connect(analyser);
         analyser.connect(this._audioCtx.destination);
 
         let ended = false;
@@ -93,9 +94,10 @@ export class OpenAITTSService extends TTSService {
             cancelAnimationFrame(this._rafId);
             this._rafId = null;
           }
-          URL.revokeObjectURL(blobUrl);
+          URL.revokeObjectURL(msUrl);
           this._blobUrl = null;
           this._audio   = null;
+          this._reader  = null;
           if (onVolume) onVolume(0);
           onDone();
         };
@@ -120,9 +122,54 @@ export class OpenAITTSService extends TTSService {
           this._rafId = requestAnimationFrame(poll);
         };
 
-        audio.play()
-          .then(() => poll())
-          .catch((err) => { finish(); onError(err); });
+        // Begin playback as soon as the browser has buffered enough
+        audio.addEventListener('canplay', () => {
+          audio.play()
+            .then(() => poll())
+            .catch((err) => { finish(); onError(err); });
+        }, { once: true });
+
+        // Feed MP3 chunks into the SourceBuffer as they arrive
+        ms.addEventListener('sourceopen', async () => {
+          let sb;
+          try {
+            sb = ms.addSourceBuffer('audio/mpeg');
+          } catch (e) {
+            onError(new Error(`MediaSource setup error: ${e.message}`));
+            return;
+          }
+
+          const reader = response.body.getReader();
+          this._reader = reader;
+
+          const appendChunk = async () => {
+            let result;
+            try {
+              result = await reader.read();
+            } catch {
+              // Reader was cancelled (stop() called) — ignore
+              return;
+            }
+
+            if (result.done) {
+              if (ms.readyState === 'open') ms.endOfStream();
+              return;
+            }
+
+            // Wait for previous append to finish before adding the next chunk
+            await new Promise((resolve, reject) => {
+              sb.addEventListener('updateend', resolve, { once: true });
+              sb.addEventListener('error',     reject,  { once: true });
+              sb.appendBuffer(result.value);
+            });
+
+            appendChunk();
+          };
+
+          appendChunk().catch((e) => {
+            if (!ended) onError(new Error(`Stream error: ${e.message}`));
+          });
+        });
       })
       .catch((err) => {
         if (this._rafId !== null) {
@@ -137,6 +184,10 @@ export class OpenAITTSService extends TTSService {
     if (this._rafId !== null) {
       cancelAnimationFrame(this._rafId);
       this._rafId = null;
+    }
+    if (this._reader) {
+      this._reader.cancel().catch(() => {});
+      this._reader = null;
     }
     if (this._audio) {
       this._audio.pause();
