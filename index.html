@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Live2D Viewer</title>
+</head>
+<body>
+  <!-- canvas injected by model.js -->
+
+  <div id="toolbar">
+    <button class="btn" id="btn-settings" title="Settings">⚙</button>
+    <button class="btn" id="btn-toggle"   title="Drag to move window">⠿⠿</button>
+    <button class="btn" id="btn-close"    title="Close">✕</button>
+  </div>
+
+  <!-- #settings-modal injected by settings.js -->
+
+  <div id="status">Initialising…</div>
+
+  <!--
+    Live2D Cubism Core — required before the bundle.
+    Download from: https://www.live2d.com/sdk/download/web/
+    Extract and copy Core/live2dcubismcore.min.js -> libs/live2dcubismcore.min.js
+  -->
+  <script src="libs/live2dcubismcore.min.js"></script>
+
+  <!-- Webpack renderer bundle -->
+  <script src="dist/bundle.js"></script>
+</body>
+</html>
