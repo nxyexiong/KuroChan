@@ -52,6 +52,9 @@ let service = new OpenAILLMService();
 /** Conversation history — array of { role, content } objects. */
 let history = [];
 
+/** System prompt derived from the character config field. */
+let systemPrompt = '';
+
 /** Output stream — listen to 'data', 'end', and 'error' events. */
 export const outputStream = new OutputStream();
 
@@ -73,6 +76,8 @@ export function configureLLM(llmConfig) {
     service = new ServiceClass();
   }
   service.configure(llmConfig);
+  systemPrompt = llmConfig?.character || '';
+  history = [];
 }
 
 /**
@@ -85,10 +90,15 @@ export function configureLLM(llmConfig) {
 export function input(text) {
   history.push({ role: 'user', content: text });
 
+  // Build messages: prepend system prompt if configured
+  const messages = systemPrompt
+    ? [{ role: 'system', content: systemPrompt }, ...history]
+    : history;
+
   let assistantReply = '';
 
   service.stream(
-    history,
+    messages,
     (chunk) => {
       assistantReply += chunk;
       outputStream.emit('data', chunk);

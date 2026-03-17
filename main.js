@@ -1,8 +1,10 @@
 const { app, BrowserWindow, ipcMain, dialog } = require('electron');
 const path = require('path');
 const fs   = require('fs');
+const os   = require('os');
 
-const CONFIG_PATH = path.join(__dirname, 'config.json');
+const CONFIG_DIR  = path.join(os.homedir(), '.kurochan');
+const CONFIG_PATH = path.join(CONFIG_DIR, 'config.json');
 
 function readConfig() {
   try { return JSON.parse(fs.readFileSync(CONFIG_PATH, 'utf8')); }
@@ -10,6 +12,7 @@ function readConfig() {
 }
 
 function writeConfig(data) {
+  fs.mkdirSync(CONFIG_DIR, { recursive: true });
   fs.writeFileSync(CONFIG_PATH, JSON.stringify(data, null, 2), 'utf8');
 }
 

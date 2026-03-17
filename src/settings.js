@@ -2,6 +2,27 @@
  * settings.js — injects the settings modal into the DOM and handles its logic
  */
 
+const DEFAULTS = {
+  model: {
+    modelDir: 'assets/models/Haru',
+  },
+  llm: {
+    service: 'openai',
+    character: 'You are kuro-chan, a friendly anime-style assistant.',
+    openai: {
+      model: 'gpt-5-mini',
+    },
+  },
+  tts: {
+    service: 'openai-tts',
+    openai: {
+      model: 'gpt-4o-mini-tts',
+      voice: 'sage',
+      speed: 1,
+    },
+  },
+};
+
 const MODAL_HTML = `
 <div id="settings-modal" class="modal-overlay hidden">
   <div class="modal">
@@ -13,7 +34,7 @@ const MODAL_HTML = `
       <div class="settings-section-body">
       <label for="model-dir-input">Model folder</label>
       <div class="input-row">
-        <input type="text" id="model-dir-input" placeholder="e.g. assets/models/Haru" />
+        <input type="text" id="model-dir-input" placeholder="default: assets/models/Haru" />
         <button class="btn-modal" id="btn-browse">Browse…</button>
       </div>
       </div>
@@ -30,6 +51,14 @@ const MODAL_HTML = `
         </select>
       </div>
       <details class="settings-subsection" open>
+        <summary class="settings-subsection-title">Character</summary>
+        <div class="settings-subsection-body">
+        <div class="input-row">
+          <textarea id="llm-character-input" rows="4" placeholder="default: You are kuro-chan, a friendly anime-style assistant."></textarea>
+        </div>
+        </div>
+      </details>
+      <details class="settings-subsection" open>
         <summary class="settings-subsection-title">OpenAI</summary>
         <div class="settings-subsection-body">
         <label for="llm-openai-api-key-input">API key</label>
@@ -38,7 +67,7 @@ const MODAL_HTML = `
         </div>
         <label for="llm-openai-model-input">Model name</label>
         <div class="input-row">
-          <input type="text" id="llm-openai-model-input" placeholder="gpt-4o" />
+          <input type="text" id="llm-openai-model-input" placeholder="default: gpt-5-mini" />
         </div>
         </div>
       </details>
@@ -64,15 +93,15 @@ const MODAL_HTML = `
         </div>
         <label for="tts-openai-model-input">Model <span class="settings-hint">(tts-1, tts-1-hd)</span></label>
         <div class="input-row">
-          <input type="text" id="tts-openai-model-input" placeholder="tts-1" />
+          <input type="text" id="tts-openai-model-input" placeholder="default: gpt-4o-mini-tts" />
         </div>
         <label for="tts-openai-voice-input">Voice <span class="settings-hint">(alloy, echo, fable, onyx, nova, shimmer)</span></label>
         <div class="input-row">
-          <input type="text" id="tts-openai-voice-input" placeholder="alloy" />
+          <input type="text" id="tts-openai-voice-input" placeholder="default: sage" />
         </div>
         <label for="tts-openai-speed-input">Speed <span class="settings-hint">(0.25–4, default 1)</span></label>
         <div class="input-row">
-          <input type="number" id="tts-openai-speed-input" min="0.25" max="4" step="0.05" placeholder="1" />
+          <input type="number" id="tts-openai-speed-input" min="0.25" max="4" step="0.05" placeholder="default: 1" />
         </div>
         </div>
       </details>
@@ -96,6 +125,7 @@ export function initSettings() {
   const modal                    = document.getElementById('settings-modal');
   const modelDirInput            = document.getElementById('model-dir-input');
   const llmServiceSelect      = document.getElementById('llm-service-select');
+  const llmCharacterInput      = document.getElementById('llm-character-input');
   const llmOpenaiApiKeyInput   = document.getElementById('llm-openai-api-key-input');
   const llmOpenaiModelInput    = document.getElementById('llm-openai-model-input');
   const ttsServiceSelect      = document.getElementById('tts-service-select');
@@ -112,17 +142,18 @@ export function initSettings() {
     const model = config.model ?? {};
     const llm   = config.llm   ?? {};
     const llmOpenai = llm.openai ?? {};
-    modelDirInput.value        = model.modelDir      || '';
-    llmServiceSelect.value     = llm.service         ?? '';
+    modelDirInput.value        = model.modelDir      || DEFAULTS.model.modelDir;
+    llmServiceSelect.value     = llm.service         || DEFAULTS.llm.service;
+    llmCharacterInput.value    = llm.character        || DEFAULTS.llm.character;
     llmOpenaiApiKeyInput.value = llmOpenai.apiKey    || '';
-    llmOpenaiModelInput.value  = llmOpenai.model     || '';
+    llmOpenaiModelInput.value  = llmOpenai.model     || DEFAULTS.llm.openai.model;
     const tts = config.tts ?? {};
     const ttsOpenai = tts.openai ?? {};
-    ttsServiceSelect.value     = tts.service          ?? '';
+    ttsServiceSelect.value     = tts.service          || DEFAULTS.tts.service;
     ttsOpenaiApiKeyInput.value = ttsOpenai.apiKey     || '';
-    ttsOpenaiModelInput.value  = ttsOpenai.model      || '';
-    ttsOpenaiVoiceInput.value  = ttsOpenai.voice      || '';
-    ttsOpenaiSpeedInput.value  = ttsOpenai.speed      ?? '';
+    ttsOpenaiModelInput.value  = ttsOpenai.model      || DEFAULTS.tts.openai.model;
+    ttsOpenaiVoiceInput.value  = ttsOpenai.voice      || DEFAULTS.tts.openai.voice;
+    ttsOpenaiSpeedInput.value  = ttsOpenai.speed      ?? DEFAULTS.tts.openai.speed;
     modal.classList.remove('hidden');
   });
 
@@ -137,22 +168,23 @@ export function initSettings() {
     await window.electronAPI.saveConfig({
       general: {},
       model: {
-        modelDir: modelDirInput.value.trim(),
+        modelDir: modelDirInput.value.trim() || DEFAULTS.model.modelDir,
       },
       llm: {
-        service: llmServiceSelect.value || undefined,
+        service: llmServiceSelect.value || DEFAULTS.llm.service,
+        character: llmCharacterInput.value.trim() || DEFAULTS.llm.character,
         openai: {
           apiKey: llmOpenaiApiKeyInput.value.trim() || undefined,
-          model:  llmOpenaiModelInput.value.trim()  || undefined,
+          model:  llmOpenaiModelInput.value.trim()  || DEFAULTS.llm.openai.model,
         },
       },
       tts: {
-        service: ttsServiceSelect.value || undefined,
+        service: ttsServiceSelect.value || DEFAULTS.tts.service,
         openai: {
           apiKey: ttsOpenaiApiKeyInput.value.trim() || undefined,
-          model:  ttsOpenaiModelInput.value.trim()  || undefined,
-          voice:  ttsOpenaiVoiceInput.value.trim()  || undefined,
-          speed:  ttsOpenaiSpeedInput.value !== '' ? Number(ttsOpenaiSpeedInput.value) : undefined,
+          model:  ttsOpenaiModelInput.value.trim()  || DEFAULTS.tts.openai.model,
+          voice:  ttsOpenaiVoiceInput.value.trim()  || DEFAULTS.tts.openai.voice,
+          speed:  ttsOpenaiSpeedInput.value !== '' ? Number(ttsOpenaiSpeedInput.value) : DEFAULTS.tts.openai.speed,
         },
       },
     });

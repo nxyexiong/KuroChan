@@ -241,6 +241,18 @@ details.settings-subsection[open] > .settings-subsection-title::before { transfo
 }
 .input-row select:focus { border-color: #2980b9; }
 
+.input-row textarea {
+  flex: 1; padding: 6px 8px;
+  background: #2a2a2a; border: 1px solid #555; border-radius: 4px;
+  color: #eee; font-size: 12px; outline: none;
+  resize: vertical;
+  font-family: sans-serif;
+  line-height: 1.5;
+}
+.input-row textarea:focus { border-color: #2980b9; }
+.input-row textarea::-webkit-scrollbar { width: 3px; }
+.input-row textarea::-webkit-scrollbar-thumb { background: #444; border-radius: 2px; }
+
 .modal-actions { display: flex; justify-content: flex-end; gap: 8px; flex-shrink: 0; margin-top: 12px; }
 
 .btn-modal {
