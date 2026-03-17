@@ -7,7 +7,7 @@
 
 import { setStatus } from './ui.js';
 import { loadModel } from './model/model.js';
-import { configureLLM, input as llmInput, outputStream as llmOutputStream } from './llm/llm.js';
+import { configureLLM, input as llmInput, outputStream as llmOutputStream, setMemory } from './llm/llm.js';
 import { configureTTS, speak, ttsEvents } from './tts/tts.js';
 import { setMouthOpen } from './model/model.js';
 import { BuiltinChatService } from './chat/builtin-chat-service.js';
@@ -24,6 +24,10 @@ export async function initCore() {
 
   // ── LLM ───────────────────────────────────────────────────────────────────
   initLLM(config.llm ?? {});
+
+  // ── Memory ────────────────────────────────────────────────────────────────
+  const memory = await window.electronAPI.getMemory();
+  setMemory(memory);
 
   // ── TTS ───────────────────────────────────────────────────────────────────
   initTTS(config.tts ?? {});

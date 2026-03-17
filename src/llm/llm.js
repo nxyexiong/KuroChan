@@ -55,6 +55,9 @@ let history = [];
 /** System prompt derived from the character config field. */
 let systemPrompt = '';
 
+/** Past memory entries loaded from memory.json. */
+let memoryEntries = [];
+
 /** Output stream — listen to 'data', 'end', and 'error' events. */
 export const outputStream = new OutputStream();
 
@@ -81,6 +84,14 @@ export function configureLLM(llmConfig) {
 }
 
 /**
+ * Load past memory entries to be included as context.
+ * @param {Array<{timestamp: string, memory: string}>} entries
+ */
+export function setMemory(entries) {
+  memoryEntries = Array.isArray(entries) ? entries : [];
+}
+
+/**
  * Send a text message to the LLM.
  * The message is appended to history; the assistant reply is collected and
  * appended once the stream completes.
@@ -90,9 +101,19 @@ export function configureLLM(llmConfig) {
 export function input(text) {
   history.push({ role: 'user', content: text });
 
+  // Build system prompt: character + past memories
+  let fullSystem = systemPrompt;
+  if (memoryEntries.length > 0) {
+    const memoriesText = memoryEntries
+      .map(e => `[${e.timestamp}]: ${e.memory}`)
+      .join('\n');
+    fullSystem = (fullSystem ? fullSystem + '\n\n' : '') +
+      '## Memories from past sessions:\n' + memoriesText;
+  }
+
   // Build messages: prepend system prompt if configured
-  const messages = systemPrompt
-    ? [{ role: 'system', content: systemPrompt }, ...history]
+  const messages = fullSystem
+    ? [{ role: 'system', content: fullSystem }, ...history]
     : history;
 
   let assistantReply = '';
@@ -122,4 +143,34 @@ export function input(text) {
  */
 export function clearHistory() {
   history = [];
+}
+
+/**
+ * Ask the LLM to summarize the current session.
+ * Returns a Promise<string|null> — null if history is empty or LLM fails.
+ * Does not affect conversation history or emit on outputStream.
+ */
+export function summarizeSession() {
+  return new Promise((resolve) => {
+    if (history.length === 0) {
+      resolve(null);
+      return;
+    }
+    const transcript = history
+      .map(m => `${m.role === 'user' ? 'User' : 'Assistant'}: ${m.content}`)
+      .join('\n');
+    const summaryMessages = [
+      {
+        role: 'user',
+        content: 'Summarize the following conversation in a few sentences, capturing key topics, decisions, and facts that would be useful to remember for future sessions:\n\n' + transcript,
+      },
+    ];
+    let summary = '';
+    service.stream(
+      summaryMessages,
+      (chunk) => { summary += chunk; },
+      () => resolve(summary.trim() || null),
+      () => resolve(null),
+    );
+  });
 }

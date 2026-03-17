@@ -5,6 +5,7 @@ const os   = require('os');
 
 const CONFIG_DIR  = path.join(os.homedir(), '.kurochan');
 const CONFIG_PATH = path.join(CONFIG_DIR, 'config.json');
+const MEMORY_PATH = path.join(CONFIG_DIR, 'memory.json');
 
 function readConfig() {
   try { return JSON.parse(fs.readFileSync(CONFIG_PATH, 'utf8')); }
@@ -14,6 +15,16 @@ function readConfig() {
 function writeConfig(data) {
   fs.mkdirSync(CONFIG_DIR, { recursive: true });
   fs.writeFileSync(CONFIG_PATH, JSON.stringify(data, null, 2), 'utf8');
+}
+
+function readMemory() {
+  try { return JSON.parse(fs.readFileSync(MEMORY_PATH, 'utf8')); }
+  catch { return []; }
+}
+
+function writeMemory(entries) {
+  fs.mkdirSync(CONFIG_DIR, { recursive: true });
+  fs.writeFileSync(MEMORY_PATH, JSON.stringify(entries, null, 2), 'utf8');
 }
 
 let mainWindow;
@@ -100,4 +111,14 @@ ipcMain.handle('open-folder-dialog', async (event) => {
     properties: ['openDirectory'],
   });
   return canceled ? null : filePaths[0];
+});
+
+// Read all memory entries
+ipcMain.handle('get-memory', () => readMemory());
+
+// Append a new memory entry
+ipcMain.handle('save-memory', (event, entry) => {
+  const entries = readMemory();
+  entries.push(entry);
+  writeMemory(entries);
 });

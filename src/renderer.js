@@ -7,11 +7,22 @@ import './styles/main.css';
 import { setStatus } from './ui.js';
 import { initSettings } from './settings.js';
 import { initCore } from './core.js';
+import { summarizeSession } from './llm/llm.js';
 
-// ── Close button ──────────────────────────────────────────────────────────────
-document.getElementById('btn-close').addEventListener('click', () =>
-  window.electronAPI.closeWindow()
-);
+// ── Close button ───────────────────────────────────────────────────────────────────
+document.getElementById('btn-close').addEventListener('click', async () => {
+  setStatus('💾 Saving memory…');
+  try {
+    const summary = await summarizeSession();
+    if (summary) {
+      const now = new Date();
+      const pad = n => String(n).padStart(2, '0');
+      const timestamp = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}-${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`;
+      await window.electronAPI.saveMemory({ timestamp, memory: summary });
+    }
+  } catch { /* best-effort — always close */ }
+  window.electronAPI.closeWindow();
+});
 
 // ── Settings ──────────────────────────────────────────────────────────────────
 initSettings();
