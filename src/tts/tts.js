@@ -18,12 +18,12 @@
  *   stopTTS();
  */
 
-import { WindowsTTSService } from './windows-tts-service.js';
+import { OpenAITTSService } from './openai-tts-service.js';
 
 const SERVICES = {
-  'windows-tts': WindowsTTSService,
+  'openai-tts': OpenAITTSService,
 };
-const DEFAULT_SERVICE = 'windows-tts';
+const DEFAULT_SERVICE = 'openai-tts';
 
 // ── Minimal event emitter ─────────────────────────────────────────────────────
 
@@ -51,7 +51,7 @@ class EventEmitter {
 
 // ── Module state ──────────────────────────────────────────────────────────────
 
-let service = new WindowsTTSService();
+let service = new OpenAITTSService();
 
 /** TTS event emitter — listen to 'end' and 'error' events. */
 export const ttsEvents = new EventEmitter();
@@ -82,10 +82,12 @@ export function configureTTS(ttsConfig) {
  * @param {string} text
  */
 export function speak(text) {
+  ttsEvents.emit('start');
   service.speak(
     text,
-    ()    => ttsEvents.emit('end'),
-    (err) => ttsEvents.emit('error', err),
+    ()      => ttsEvents.emit('end'),
+    (err)   => ttsEvents.emit('error', err),
+    (vol)   => ttsEvents.emit('volume', vol),
   );
 }
 

@@ -18,6 +18,20 @@ export const app = new PIXI.Application({
 
 document.body.appendChild(app.view);
 
+/** Currently loaded Live2D model instance, or null. */
+let _currentModel = null;
+
+/** Desired mouth open value set externally; applied inside coreModel.update(). */
+let _lipSyncValue = 0;
+
+/**
+ * Set the desired mouth-open value. Takes effect on the very next rendered frame.
+ * @param {number} value  0 (closed) to 1 (fully open)
+ */
+export function setMouthOpen(value) {
+  _lipSyncValue = Math.max(0, Math.min(1, value));
+}
+
 // ── Load and display a model ──────────────────────────────────────────────────
 export async function loadModel(modelPath) {
   // Destroy any previously loaded model
@@ -35,6 +49,18 @@ export async function loadModel(modelPath) {
   }
 
   app.stage.addChild(model);
+  _currentModel = model;
+
+  // Wrap coreModel.update so our lip sync value is injected just before
+  // Live2D bakes parameters into drawable outputs — the only reliable hook.
+  const coreModel = model.internalModel.coreModel;
+  const _origCoreUpdate = coreModel.update.bind(coreModel);
+  coreModel.update = () => {
+    try {
+      coreModel.setParameterValueById('ParamMouthOpenY', _lipSyncValue, 1.0);
+    } catch { /* parameter may not exist on every model */ }
+    _origCoreUpdate();
+  };
 
   _fitModel(model);
   app.renderer.on('resize', () => _fitModel(model));

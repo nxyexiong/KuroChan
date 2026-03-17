@@ -45,34 +45,34 @@ const MODAL_HTML = `
       </div>
     </details>
 
-    <details class="settings-section" open>
+      <details class="settings-section" open>
       <summary class="settings-section-title">TTS</summary>
       <div class="settings-section-body">
       <label for="tts-service-select">Service</label>
       <div class="input-row">
         <select id="tts-service-select">
           <option value="">— none —</option>
-          <option value="windows-tts">Windows TTS</option>
+          <option value="openai-tts">OpenAI TTS</option>
         </select>
       </div>
       <details class="settings-subsection" open>
-        <summary class="settings-subsection-title">Windows TTS</summary>
+        <summary class="settings-subsection-title">OpenAI TTS</summary>
         <div class="settings-subsection-body">
-        <label for="tts-windows-voice-input">Voice name</label>
+        <label for="tts-openai-api-key-input">API key</label>
         <div class="input-row">
-          <input type="text" id="tts-windows-voice-input" placeholder="e.g. Microsoft Zira Desktop" />
+          <input type="password" id="tts-openai-api-key-input" placeholder="sk-…" autocomplete="off" />
         </div>
-        <label for="tts-windows-rate-input">Rate <span class="settings-hint">(0.1–2, default 1)</span></label>
+        <label for="tts-openai-model-input">Model <span class="settings-hint">(tts-1, tts-1-hd)</span></label>
         <div class="input-row">
-          <input type="number" id="tts-windows-rate-input" min="0.1" max="2" step="0.1" placeholder="1" />
+          <input type="text" id="tts-openai-model-input" placeholder="tts-1" />
         </div>
-        <label for="tts-windows-pitch-input">Pitch <span class="settings-hint">(0–2, default 1)</span></label>
+        <label for="tts-openai-voice-input">Voice <span class="settings-hint">(alloy, echo, fable, onyx, nova, shimmer)</span></label>
         <div class="input-row">
-          <input type="number" id="tts-windows-pitch-input" min="0" max="2" step="0.1" placeholder="1" />
+          <input type="text" id="tts-openai-voice-input" placeholder="alloy" />
         </div>
-        <label for="tts-windows-volume-input">Volume <span class="settings-hint">(0–1, default 1)</span></label>
+        <label for="tts-openai-speed-input">Speed <span class="settings-hint">(0.25–4, default 1)</span></label>
         <div class="input-row">
-          <input type="number" id="tts-windows-volume-input" min="0" max="1" step="0.05" placeholder="1" />
+          <input type="number" id="tts-openai-speed-input" min="0.25" max="4" step="0.05" placeholder="1" />
         </div>
         </div>
       </details>
@@ -98,11 +98,11 @@ export function initSettings() {
   const llmServiceSelect      = document.getElementById('llm-service-select');
   const llmOpenaiApiKeyInput   = document.getElementById('llm-openai-api-key-input');
   const llmOpenaiModelInput    = document.getElementById('llm-openai-model-input');
-  const ttsServiceSelect     = document.getElementById('tts-service-select');
-  const ttsWindowsVoiceInput  = document.getElementById('tts-windows-voice-input');
-  const ttsWindowsRateInput   = document.getElementById('tts-windows-rate-input');
-  const ttsWindowsPitchInput  = document.getElementById('tts-windows-pitch-input');
-  const ttsWindowsVolumeInput = document.getElementById('tts-windows-volume-input');
+  const ttsServiceSelect      = document.getElementById('tts-service-select');
+  const ttsOpenaiApiKeyInput   = document.getElementById('tts-openai-api-key-input');
+  const ttsOpenaiModelInput    = document.getElementById('tts-openai-model-input');
+  const ttsOpenaiVoiceInput    = document.getElementById('tts-openai-voice-input');
+  const ttsOpenaiSpeedInput    = document.getElementById('tts-openai-speed-input');
   const browseBtn                = document.getElementById('btn-browse');
   const saveBtn        = document.getElementById('btn-settings-save');
   const cancelBtn      = document.getElementById('btn-settings-cancel');
@@ -117,12 +117,12 @@ export function initSettings() {
     llmOpenaiApiKeyInput.value = llmOpenai.apiKey    || '';
     llmOpenaiModelInput.value  = llmOpenai.model     || '';
     const tts = config.tts ?? {};
-    const ttsWindows = tts.windows ?? {};
-    ttsServiceSelect.value      = tts.service       ?? '';
-    ttsWindowsVoiceInput.value  = ttsWindows.voiceName ?? '';
-    ttsWindowsRateInput.value   = ttsWindows.rate      ?? '';
-    ttsWindowsPitchInput.value  = ttsWindows.pitch     ?? '';
-    ttsWindowsVolumeInput.value = ttsWindows.volume    ?? '';
+    const ttsOpenai = tts.openai ?? {};
+    ttsServiceSelect.value     = tts.service          ?? '';
+    ttsOpenaiApiKeyInput.value = ttsOpenai.apiKey     || '';
+    ttsOpenaiModelInput.value  = ttsOpenai.model      || '';
+    ttsOpenaiVoiceInput.value  = ttsOpenai.voice      || '';
+    ttsOpenaiSpeedInput.value  = ttsOpenai.speed      ?? '';
     modal.classList.remove('hidden');
   });
 
@@ -148,11 +148,11 @@ export function initSettings() {
       },
       tts: {
         service: ttsServiceSelect.value || undefined,
-        windows: {
-          voiceName: ttsWindowsVoiceInput.value.trim()  || undefined,
-          rate:      ttsWindowsRateInput.value   !== '' ? Number(ttsWindowsRateInput.value)   : undefined,
-          pitch:     ttsWindowsPitchInput.value  !== '' ? Number(ttsWindowsPitchInput.value)  : undefined,
-          volume:    ttsWindowsVolumeInput.value !== '' ? Number(ttsWindowsVolumeInput.value) : undefined,
+        openai: {
+          apiKey: ttsOpenaiApiKeyInput.value.trim() || undefined,
+          model:  ttsOpenaiModelInput.value.trim()  || undefined,
+          voice:  ttsOpenaiVoiceInput.value.trim()  || undefined,
+          speed:  ttsOpenaiSpeedInput.value !== '' ? Number(ttsOpenaiSpeedInput.value) : undefined,
         },
       },
     });

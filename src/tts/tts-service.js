@@ -14,11 +14,12 @@ export class TTSService {
   /**
    * Speak the given text.
    * @param {string} text
-   * @param {() => void} onDone      called when speech finishes
-   * @param {(err: Error) => void} onError  called on error
+   * @param {() => void} onDone                called when speech finishes
+   * @param {(err: Error) => void} onError     called on error
+   * @param {(vol: number) => void} [onVolume] called each frame with RMS volume 0–1
    * @returns {void}
    */
-  speak(text, onDone, onError) {
+  speak(text, onDone, onError, onVolume) {
     throw new Error('TTSService.speak() must be implemented');
   }
 
