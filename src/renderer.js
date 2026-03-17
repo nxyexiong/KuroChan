@@ -1,12 +1,12 @@
 /**
  * renderer.js — entry point
- * Wires up the three modules: ui, model, settings.
+ * Wires up UI event handlers, then delegates app bootstrap to core.js.
  */
 
 import './styles/main.css';
 import { setStatus } from './ui.js';
-import { loadModel } from './model.js';
 import { initSettings } from './settings.js';
+import { initCore } from './core.js';
 
 // ── Close button ──────────────────────────────────────────────────────────────
 document.getElementById('btn-close').addEventListener('click', () =>
@@ -23,12 +23,5 @@ if (!window.Live2DCubismCore) {
 }
 
 // ── Bootstrap ─────────────────────────────────────────────────────────────────
-(async () => {
-  const config = await window.electronAPI.getConfig();
-  if (!config.modelPath) {
-    setStatus('⚙ No model found — click ⚙ to choose a model folder');
-    return;
-  }
-  await loadModel(config.modelPath);
-})();
+initCore();
 

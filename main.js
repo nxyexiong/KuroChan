@@ -6,7 +6,7 @@ const CONFIG_PATH = path.join(__dirname, 'config.json');
 
 function readConfig() {
   try { return JSON.parse(fs.readFileSync(CONFIG_PATH, 'utf8')); }
-  catch { return { modelDir: '' }; }
+  catch { return {}; }
 }
 
 function writeConfig(data) {
@@ -57,11 +57,12 @@ ipcMain.on('close-window', (event) => {
 
 const DEFAULT_MODEL_DIR = 'assets/models/Haru';
 
-// Return config + resolved model file path
+// Return config + resolved model file path injected into general section
 ipcMain.handle('get-config', () => {
   const config = readConfig();
-  config.modelPath = null;
-  const modelDir = config.modelDir || DEFAULT_MODEL_DIR;
+  const model = config.model ?? {};
+  const modelDir = model.modelDir || DEFAULT_MODEL_DIR;
+  model.modelPath = null;
   if (modelDir) {
     try {
       const dir = path.isAbsolute(modelDir)
@@ -72,12 +73,13 @@ ipcMain.handle('get-config', () => {
         const abs = path.join(dir, f);
         const rel = path.relative(__dirname, abs);
         // Use relative path when inside app dir, else file:// URL
-        config.modelPath = rel.startsWith('..')
+        model.modelPath = rel.startsWith('..')
           ? 'file:///' + abs.replace(/\\/g, '/')
           : rel.replace(/\\/g, '/');
       }
     } catch { /* dir unreadable — modelPath stays null */ }
   }
+  config.model = model;
   return config;
 });
 

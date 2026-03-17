@@ -87,6 +87,14 @@ canvas {
 .modal h3 { margin: 0 0 16px; font-size: 15px; color: #fff; }
 .modal label { display: block; margin-bottom: 6px; color: #aaa; }
 
+.settings-section { margin-bottom: 8px; }
+.settings-section-title {
+  font-size: 11px; font-weight: 600; text-transform: uppercase;
+  letter-spacing: 0.07em; color: #777;
+  border-bottom: 1px solid #333;
+  padding-bottom: 4px; margin-bottom: 12px; margin-top: 4px;
+}
+
 .input-row {
   display: flex; gap: 6px; margin-bottom: 16px;
 }
