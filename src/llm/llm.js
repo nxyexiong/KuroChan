@@ -61,6 +61,9 @@ let memoryEntries = [];
 /** Output stream — listen to 'data', 'end', and 'error' events. */
 export const outputStream = new OutputStream();
 
+/** Monotonic counter — incremented on every input() call to cancel previous streams. */
+let _callId = 0;
+
 // ── Public API ────────────────────────────────────────────────────────────────
 
 /**
@@ -99,6 +102,8 @@ export function setMemory(entries) {
  * @param {string} text
  */
 export function input(text) {
+  const myId = ++_callId;
+  outputStream.emit('start');
   history.push({ role: 'user', content: text });
 
   // Build system prompt: character + past memories
@@ -121,16 +126,19 @@ export function input(text) {
   service.stream(
     messages,
     (chunk) => {
+      if (_callId !== myId) return;
       assistantReply += chunk;
       outputStream.emit('data', chunk);
     },
     () => {
+      if (_callId !== myId) return;
       if (assistantReply) {
         history.push({ role: 'assistant', content: assistantReply });
       }
       outputStream.emit('end');
     },
     (err) => {
+      if (_callId !== myId) return;
       // Remove the user message that failed so history stays consistent
       history.pop();
       outputStream.emit('error', err);

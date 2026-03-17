@@ -1,21 +1,16 @@
 ﻿/**
- * whisper-stt-service.js - Local Whisper STT via koffi + whisper_kuro.dll.
+ * whisper-stt-service.js — Local Whisper STT via koffi + whisper_kuro.dll.
  *
- * Audio pipeline:
- *   getUserMedia -> AudioContext + AudioWorkletNode (raw Float32 PCM capture)
- *   -> resample to 16 kHz mono -> IPC to main process
- *   -> koffi calls kurochan_whisper_transcribe() -> transcript string
+ * Responsibilities (only):
+ *   1. Open the mic via getUserMedia + AudioWorklet
+ *   2. Deliver raw Float32 PCM chunks to the caller via onChunk()
+ *   3. Send a completed recording to whisper and return the transcript
  *
- * AudioWorklet runs in the AudioWorkletGlobalScope — a dedicated thread
- * completely separate from both the renderer main thread and Chromium's native
- * audio mixer thread.  This avoids the ScriptProcessorNode access violations
- * AND the decodeAudioData crash that occur in Electron 28.
- * The worklet node is NOT connected to the audio destination so the mic is
- * never routed to the speakers.
+ * Voice Activity Detection is handled by the stt.js layer above, keeping
+ * this class focused on the audio I/O and whisper IPC.
  */
 import { STTService } from './stt-service.js';
 
-// Inline processor source loaded as a Blob URL so no extra file is needed.
 const WORKLET_SRC = `
 class KuroChanPCMCapture extends AudioWorkletProcessor {
   process(inputs) {
@@ -53,31 +48,32 @@ export class WhisperSTTService extends STTService {
     this._audioCtx     = null;
     this._source       = null;
     this._worklet      = null;
-    this._pcmChunks    = [];
     this._sampleRate   = 44100;
-    this._onTranscript = null;
-    this._onError      = null;
+    this._onChunk      = null;   // (Float32Array) => void — set by startListening
     this._pendingStop  = false;
   }
 
   configure({ whisper = {} } = {}) {
-    if (whisper.modelPath) this._modelPath = whisper.modelPath;
-    if (whisper.nThreads)  this._nThreads  = whisper.nThreads;
-    if (whisper.language)  this._language  = whisper.language;
+    if (whisper.modelPath != null) this._modelPath = whisper.modelPath;
+    if (whisper.nThreads  != null) this._nThreads  = whisper.nThreads;
+    if (whisper.language  != null) this._language  = whisper.language;
   }
 
   getModelPath() { return this._modelPath; }
 
-  async startListening(onTranscript, onError) {
+  /**
+   * Open mic and start delivering raw PCM chunks.
+   * @param {(chunk: Float32Array) => void} onChunk  - called per worklet frame (~128 samples)
+   * @param {(err: Error) => void}          onError
+   */
+  async startListening(onChunk, onError) {
     try {
       const { ok, error } = await window.electronAPI.sttCheck({ modelPath: this._modelPath });
       if (!ok) { onError(new Error(error)); return; }
     } catch (err) { onError(err); return; }
 
-    this._onTranscript = onTranscript;
-    this._onError      = onError;
-    this._pendingStop  = false;
-    this._pcmChunks    = [];
+    this._onChunk     = onChunk;
+    this._pendingStop = false;
 
     let stream;
     try {
@@ -100,7 +96,6 @@ export class WhisperSTTService extends STTService {
       this._audioCtx   = audioCtx;
       this._sampleRate = audioCtx.sampleRate;
 
-      // Load the worklet processor from a Blob URL
       const blob       = new Blob([WORKLET_SRC], { type: 'application/javascript' });
       const workletUrl = URL.createObjectURL(blob);
       await audioCtx.audioWorklet.addModule(workletUrl);
@@ -109,13 +104,9 @@ export class WhisperSTTService extends STTService {
       const source  = audioCtx.createMediaStreamSource(stream);
       const worklet = new AudioWorkletNode(audioCtx, 'kurochan-pcm-capture');
 
-      worklet.port.onmessage = (e) => {
-        this._pcmChunks.push(e.data); // Float32Array(128) — raw PCM
-      };
+      worklet.port.onmessage = (e) => this._onChunk?.(e.data);
 
-      // Connect source -> worklet only. NOT connected to destination, so
-      // the mic audio is never played back. AudioWorklet still processes
-      // because it has a live input connection.
+      // Source → worklet only; NOT connected to destination (no mic playback).
       source.connect(worklet);
 
       this._source  = source;
@@ -129,15 +120,16 @@ export class WhisperSTTService extends STTService {
     }
   }
 
+  /** Tear down the mic immediately. */
   stopListening() {
+    this._onChunk = null;
+
     if (!this._worklet) {
       this._pendingStop = true;
       return;
     }
 
-    // Unhook the message handler first so no new chunks arrive during teardown
     this._worklet.port.onmessage = null;
-
     try { this._source.disconnect();  } catch { /* ignore */ }
     try { this._worklet.disconnect(); } catch { /* ignore */ }
     this._source  = null;
@@ -152,32 +144,27 @@ export class WhisperSTTService extends STTService {
       this._stream.getTracks().forEach(t => t.stop());
       this._stream = null;
     }
-
-    this._transcribe().then(this._onTranscript, this._onError);
   }
 
-  async _transcribe() {
-    const chunks = this._pcmChunks;
-    this._pcmChunks = [];
-
-    if (chunks.length === 0) throw new Error('No audio captured.');
-
+  /**
+   * Send accumulated Float32 chunks to whisper and resolve with the transcript.
+   * @param {Float32Array[]} chunks
+   * @returns {Promise<string>}
+   */
+  async transcribe(chunks) {
     const totalLen   = chunks.reduce((s, c) => s + c.length, 0);
     const allSamples = new Float32Array(totalLen);
     let offset = 0;
-    for (const chunk of chunks) {
-      allSamples.set(chunk, offset);
-      offset += chunk.length;
-    }
+    for (const chunk of chunks) { allSamples.set(chunk, offset); offset += chunk.length; }
 
     const samples = resampleTo16k(allSamples, this._sampleRate);
 
-    const result = await window.electronAPI.sttTranscribe({
+    return window.electronAPI.sttTranscribe({
       samplesBuffer: samples.buffer,
       modelPath:     this._modelPath,
       nThreads:      this._nThreads,
       language:      this._language,
     });
-    return result;
   }
 }
+

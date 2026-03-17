@@ -7,11 +7,10 @@
 
 import { setStatus } from './ui.js';
 import { loadModel } from './model/model.js';
-import { configureLLM, input as llmInput, outputStream as llmOutputStream, setMemory } from './llm/llm.js';
-import { configureTTS, speak, ttsEvents } from './tts/tts.js';
-import { configureSTT } from './stt/stt.js';
+import { configureLLM, outputStream as llmOutputStream, setMemory } from './llm/llm.js';
+import { configureTTS, speak, stopTTS, ttsEvents } from './tts/tts.js';
+import { configureSTT, initSTTButton } from './stt/stt.js';
 import { setMouthOpen } from './model/model.js';
-import { BuiltinChatService } from './chat/builtin-chat-service.js';
 import { initChat } from './chat/chat.js';
 
 export async function initCore() {
@@ -35,6 +34,7 @@ export async function initCore() {
 
   // ── STT ───────────────────────────────────────────────────────────────────
   initSTT(config.stt ?? {});
+  initSTTButton();
 
   // ── LLM → TTS ─────────────────────────────────────────────────────────────
   wireLLMToTTS();
@@ -43,7 +43,7 @@ export async function initCore() {
   wireTTSToModel();
 
   // ── Chat ──────────────────────────────────────────────────────────────────
-  initChatModule();
+  initChat();
 }
 
 // ── Section initialisers ──────────────────────────────────────────────────────
@@ -72,27 +72,13 @@ function initSTT(sttConfig) {
   configureSTT(sttConfig);
 }
 
+
 function wireLLMToTTS() {
-  let pendingReply = '';
-
-  llmOutputStream.on('data', (chunk) => {
-    pendingReply += chunk;
-  });
-
-  llmOutputStream.on('end', () => {
-    const text = pendingReply.trim();
-    pendingReply = '';
-    if (text) speak(text);
-  });
-
-  llmOutputStream.on('error', () => {
-    pendingReply = '';
-  });
-}
-
-function initChatModule() {
-  const service = new BuiltinChatService(llmInput, llmOutputStream);
-  initChat(service);
+  let accumulated = '';
+  llmOutputStream.on('start', () => { stopTTS(); accumulated = ''; });
+  llmOutputStream.on('data',  (chunk) => { accumulated += chunk; });
+  llmOutputStream.on('end',   () => { if (accumulated.trim()) speak(accumulated.trim()); accumulated = ''; });
+  llmOutputStream.on('error', () => { accumulated = ''; });
 }
 
 function wireTTSToModel() {

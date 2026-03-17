@@ -23,6 +23,10 @@ const DEFAULTS = {
   },
   stt: {
     service: 'whisper-local',
+    vad: {
+      voiceThreshold:  0.02,
+      silenceDuration: 1500,
+    },
     whisper: {
       modelPath: 'resources/whisper/ggml-base.en.bin',
       nThreads:  4,
@@ -127,6 +131,19 @@ const MODAL_HTML = `
         </select>
       </div>
       <details class="settings-subsection" open>
+        <summary class="settings-subsection-title">Voice detection</summary>
+        <div class="settings-subsection-body">
+        <label for="stt-vad-threshold-input">Voice threshold <span class="settings-hint">(RMS 0.0–1.0, lower = more sensitive)</span></label>
+        <div class="input-row">
+          <input type="number" id="stt-vad-threshold-input" min="0.001" max="1" step="0.005" placeholder="default: 0.02" />
+        </div>
+        <label for="stt-vad-silence-input">Silence duration <span class="settings-hint">(ms before sending, e.g. 1500)</span></label>
+        <div class="input-row">
+          <input type="number" id="stt-vad-silence-input" min="200" max="10000" step="100" placeholder="default: 1500" />
+        </div>
+        </div>
+      </details>
+      <details class="settings-subsection" open>
         <summary class="settings-subsection-title">Whisper (local)</summary>
         <div class="settings-subsection-body">
         <label for="stt-whisper-model-path-input">Model file <span class="settings-hint">(.bin from huggingface.co/ggerganov/whisper.cpp)</span></label>
@@ -176,10 +193,12 @@ export function initSettings() {
   const saveBtn        = document.getElementById('btn-settings-save');
   const cancelBtn      = document.getElementById('btn-settings-cancel');
   const sttServiceSelect          = document.getElementById('stt-service-select');
-  const sttWhisperModelPathInput  = document.getElementById('stt-whisper-model-path-input');
-  const sttWhisperThreadsInput    = document.getElementById('stt-whisper-threads-input');
-  const sttWhisperLanguageInput   = document.getElementById('stt-whisper-language-input');
-  const browseWhisperModelBtn     = document.getElementById('btn-browse-whisper-model');
+  const sttVadThresholdInput       = document.getElementById('stt-vad-threshold-input');
+  const sttVadSilenceInput         = document.getElementById('stt-vad-silence-input');
+  const sttWhisperModelPathInput   = document.getElementById('stt-whisper-model-path-input');
+  const sttWhisperThreadsInput     = document.getElementById('stt-whisper-threads-input');
+  const sttWhisperLanguageInput    = document.getElementById('stt-whisper-language-input');
+  const browseWhisperModelBtn      = document.getElementById('btn-browse-whisper-model');
 
   document.getElementById('btn-settings').addEventListener('click', async () => {
     const config = await window.electronAPI.getConfig();
@@ -199,11 +218,14 @@ export function initSettings() {
     ttsOpenaiVoiceInput.value  = ttsOpenai.voice      || DEFAULTS.tts.openai.voice;
     ttsOpenaiSpeedInput.value  = ttsOpenai.speed      ?? DEFAULTS.tts.openai.speed;
     const stt        = config.stt ?? {};
+    const sttVad     = stt.vad     ?? {};
     const sttWhisper = stt.whisper ?? {};
-    sttServiceSelect.value         = stt.service           || DEFAULTS.stt.service;
-    sttWhisperModelPathInput.value = sttWhisper.modelPath  || DEFAULTS.stt.whisper.modelPath;
-    sttWhisperThreadsInput.value   = sttWhisper.nThreads   ?? DEFAULTS.stt.whisper.nThreads;
-    sttWhisperLanguageInput.value  = sttWhisper.language   || DEFAULTS.stt.whisper.language;
+    sttServiceSelect.value         = stt.service                  || DEFAULTS.stt.service;
+    sttVadThresholdInput.value     = sttVad.voiceThreshold        ?? DEFAULTS.stt.vad.voiceThreshold;
+    sttVadSilenceInput.value       = sttVad.silenceDuration       ?? DEFAULTS.stt.vad.silenceDuration;
+    sttWhisperModelPathInput.value = sttWhisper.modelPath         || DEFAULTS.stt.whisper.modelPath;
+    sttWhisperThreadsInput.value   = sttWhisper.nThreads          ?? DEFAULTS.stt.whisper.nThreads;
+    sttWhisperLanguageInput.value  = sttWhisper.language          || DEFAULTS.stt.whisper.language;
     modal.classList.remove('hidden');
   });
 
@@ -247,9 +269,13 @@ export function initSettings() {
       },
       stt: {
         service: sttServiceSelect.value || DEFAULTS.stt.service,
+        vad: {
+          voiceThreshold:  sttVadThresholdInput.value  !== '' ? Number(sttVadThresholdInput.value)  : DEFAULTS.stt.vad.voiceThreshold,
+          silenceDuration: sttVadSilenceInput.value    !== '' ? Number(sttVadSilenceInput.value)    : DEFAULTS.stt.vad.silenceDuration,
+        },
         whisper: {
           modelPath: sttWhisperModelPathInput.value.trim() || DEFAULTS.stt.whisper.modelPath,
-          nThreads:  sttWhisperThreadsInput.value !== '' ? Number(sttWhisperThreadsInput.value) : DEFAULTS.stt.whisper.nThreads,
+          nThreads:  sttWhisperThreadsInput.value  !== '' ? Number(sttWhisperThreadsInput.value)  : DEFAULTS.stt.whisper.nThreads,
           language:  sttWhisperLanguageInput.value.trim() || DEFAULTS.stt.whisper.language,
         },
       },
