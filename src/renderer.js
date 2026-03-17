@@ -26,7 +26,7 @@ if (!window.Live2DCubismCore) {
 (async () => {
   const config = await window.electronAPI.getConfig();
   if (!config.modelPath) {
-    setStatus('⚙ No model set — click ⚙ to choose a model folder');
+    setStatus('⚙ No model found — click ⚙ to choose a model folder');
     return;
   }
   await loadModel(config.modelPath);

@@ -1,7 +1,7 @@
 {
-  "name": "testlive2d",
+  "name": "kurochan",
   "version": "1.0.0",
-  "description": "Live2D desktop mascot with transparent background using Electron + PixiJS",
+  "description": "KuroChan — Live2D desktop mascot with transparent background using Electron + PixiJS",
   "main": "main.js",
   "scripts": {
     "build": "webpack --config webpack.config.js",

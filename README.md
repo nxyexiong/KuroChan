@@ -1,4 +1,4 @@
-# Live2D Transparent Desktop Viewer
+# KuroChan
 
 A transparent, frameless desktop window to display Live2D models, built with **Electron**, **PixiJS v6**, and **pixi-live2d-display**.
 
@@ -70,7 +70,7 @@ This compiles the renderer bundle with webpack, then launches Electron.
 ## Project Structure
 
 ```
-testlive2d/
+kurochan/
 ├── main.js            Electron main process (window creation)
 ├── preload.js         Contextbridge (IPC to main)
 ├── index.html         App shell (loads core + bundle)

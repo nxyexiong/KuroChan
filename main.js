@@ -55,15 +55,18 @@ ipcMain.on('close-window', (event) => {
   if (win) win.close();
 });
 
+const DEFAULT_MODEL_DIR = 'assets/models/Haru';
+
 // Return config + resolved model file path
 ipcMain.handle('get-config', () => {
   const config = readConfig();
   config.modelPath = null;
-  if (config.modelDir) {
+  const modelDir = config.modelDir || DEFAULT_MODEL_DIR;
+  if (modelDir) {
     try {
-      const dir = path.isAbsolute(config.modelDir)
-        ? config.modelDir
-        : path.join(__dirname, config.modelDir);
+      const dir = path.isAbsolute(modelDir)
+        ? modelDir
+        : path.join(__dirname, modelDir);
       const f = fs.readdirSync(dir).find(n => n.endsWith('.model3.json'));
       if (f) {
         const abs = path.join(dir, f);
