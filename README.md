@@ -1,15 +1,21 @@
 # KuroChan
 
-A transparent, frameless desktop mascot built with **Electron**, **PixiJS v6**, and **pixi-live2d-display**. KuroChan renders a Live2D character on your desktop and connects it to an LLM (OpenAI), text-to-speech (OpenAI TTS), and local speech-to-text (Whisper) so you can talk to her.
+A transparent, frameless desktop mascot built with **Electron**, **PixiJS v6**, and **pixi-live2d-display**. KuroChan renders a Live2D character on your desktop and connects it to a language model, text-to-speech, and local speech-to-text so you can talk to her.
+
+---
+
+## Screenshot
+
+![KuroChan](screenshot.png)
 
 ---
 
 ## Features
 
-- Transparent, always-on-top frameless window with a draggable Live2D model
-- LLM chat via OpenAI (configurable model and system prompt)
-- Text-to-speech via OpenAI TTS with lip-sync driven from audio amplitude
-- Local speech-to-text via [whisper.cpp](https://github.com/ggerganov/whisper.cpp) (no API key required)
+- Transparent, always-on-top frameless window with a draggable, zoomable Live2D model
+- LLM chat with configurable provider, model, and system prompt (character personality)
+- Text-to-speech with lip-sync driven from audio amplitude and adjustable pitch
+- Local speech-to-text via [whisper.cpp](https://github.com/ggerganov/whisper.cpp) (no cloud API required)
 - Voice-activity detection (VAD) with configurable threshold and silence duration
 - Persistent conversation memory across sessions
 - In-app Settings UI — no config file editing needed
@@ -21,11 +27,10 @@ A transparent, frameless desktop mascot built with **Electron**, **PixiJS v6**, 
 | Tool | Required for |
 |---|---|
 | [Node.js 18+](https://nodejs.org/) | Running the app and all npm scripts |
-| [Git](https://git-scm.com/) | Initialising the `whisper.cpp` submodule |
 | [CMake 3.16+](https://cmake.org/) | Building the Whisper native DLL |
 | Visual Studio 2019/2022 (MSVC) | Compiling the Whisper native DLL |
 
-Git, CMake, and MSVC are only needed if you want local speech-to-text. You can skip the Whisper build and run without STT.
+CMake and MSVC are only needed if you want local speech-to-text. You can skip the Whisper build and run without STT.
 
 ---
 
@@ -65,32 +70,19 @@ assets/
       ...
 ```
 
-Free sample models are included in the Cubism SDK under `Samples/Resources/`.
+Free sample models are available in the Cubism SDK under `Samples/Resources/`.
 
 ### 5. Build the Whisper native DLL (optional — for local STT)
 
-```powershell
+```bat
 npm run build:whisper
-# or directly:
-.\scripts\build-whisper.ps1
 ```
 
 This will:
-1. Initialise the `whisper.cpp` git submodule if needed.
-2. Configure and build with CMake (Release).
-3. Copy `whisper_kuro.dll` to `resources/whisper/`.
+1. Configure and build whisper.cpp with CMake (Release).
+2. Copy `whisper_kuro.dll` to `resources/whisper/`.
 
-Then download a GGML model and place it in `resources/whisper/`:
-
-| File | Size | Notes |
-|---|---|---|
-| `ggml-base.en.bin` | ~140 MB | English-only, fastest |
-| `ggml-base.bin` | ~140 MB | Multilingual |
-| `ggml-small.en.bin` | ~460 MB | English-only, more accurate |
-
-Download from <https://huggingface.co/ggerganov/whisper.cpp/tree/main>.
-
-To skip the Whisper build, pass `-SkipWhisper` to the release build script (see below).
+Then download a Whisper model file and place it in `resources/whisper/`. Models are available from the [whisper.cpp Hugging Face repository](https://huggingface.co/ggerganov/whisper.cpp/tree/main).
 
 ### 6. Run in development mode
 
@@ -103,9 +95,9 @@ npm run dev      # launch Electron without rebuilding (fast iteration)
 
 Click the **⚙** gear icon inside the app to open the Settings panel. From there you can set:
 
-- **Model** — path to the Live2D model folder
-- **LLM** — OpenAI API key, model name, and system prompt (character)
-- **TTS** — OpenAI TTS API key, model, voice, and speed
+- **Model** — path to the Live2D model folder and display scale
+- **LLM** — provider URL, API key, model name, and system prompt (character)
+- **TTS** — provider URL, API key, voice, speed, and pitch adjustment
 - **STT** — Whisper model file path, CPU threads, language, and VAD parameters
 
 Settings are saved to disk and take effect after clicking **Save & Reload**.
@@ -114,17 +106,17 @@ Settings are saved to disk and take effect after clicking **Save & Reload**.
 
 ## Release Build (Windows installer)
 
-`build.ps1` produces a distributable NSIS installer and a portable `.exe` under `release/`.
+`build.cmd` produces a distributable NSIS installer under `release/`.
 
-```powershell
-# Full build (whisper DLL + webpack + electron-builder)
-.\build.ps1
+```bat
+:: Full build (whisper DLL + webpack + electron-builder)
+build.cmd
 
-# Skip whisper DLL (e.g. MSVC not installed)
-.\build.ps1 -SkipWhisper
+:: Skip whisper DLL (e.g. MSVC not installed)
+build.cmd /skipwhisper
 
-# Force npm install even if node_modules already exists
-.\build.ps1 -NpmInstall
+:: Force npm install even if node_modules already exists
+build.cmd /npminstall
 ```
 
 Alternatively, use npm directly:
@@ -156,17 +148,17 @@ KuroChan/
 ├── preload.js               Context bridge — exposes electronAPI to renderer
 ├── index.html               App shell
 ├── webpack.config.js        Bundles src/ → dist/bundle.js
-├── build.ps1                Full release build script
+├── build.cmd                Full release build script
 ├── scripts/
-│   └── build-whisper.ps1    Builds whisper_kuro.dll via CMake
+│   └── build-whisper.cmd    Builds whisper_kuro.dll via CMake
 ├── src/
 │   ├── core.js              App bootstrap — wires all modules together
 │   ├── renderer.js          Renderer entry point
 │   ├── ui.js                Toolbar and status indicator
 │   ├── settings.js          Settings modal
-│   ├── model/               Live2D model loading and lip-sync
-│   ├── llm/                 LLM abstraction + OpenAI implementation
-│   ├── tts/                 TTS abstraction + OpenAI TTS implementation
+│   ├── model/               Live2D model loading, drag, and zoom
+│   ├── llm/                 LLM abstraction + provider implementations
+│   ├── tts/                 TTS abstraction + provider implementation
 │   ├── stt/                 STT abstraction + Whisper local implementation
 │   ├── chat/                Chat logic and built-in service
 │   └── styles/
@@ -177,21 +169,9 @@ KuroChan/
 │   └── models/                   ← add model folders here
 ├── resources/
 │   └── whisper/
-│       ├── whisper_kuro.dll      ← generated by build-whisper.ps1
-│       └── ggml-*.bin            ← download separately
+│       ├── whisper_kuro.dll      ← generated by build-whisper.cmd
+│       └── *.bin                 ← Whisper model file (download separately)
 └── third_party/
-    └── whisper.cpp               ← git submodule
+    ├── whisper.cpp               Whisper C++ source
+    └── whisper_wrapper.cpp       Native DLL wrapper
 ```
-
----
-
-## Troubleshooting
-
-| Symptom | Fix |
-|---|---|
-| Black background instead of transparent | Ensure `transparent: true` and `backgroundColor: '#00000000'` in `main.js` |
-| "Live2D Core missing" | Copy `live2dcubismcore.min.js` into `libs/` |
-| Model fails to load | Open Settings and verify the Model folder path |
-| STT button does nothing | Build `whisper_kuro.dll` and download a GGML model, then set paths in Settings → STT |
-| Whisper DLL build fails | Confirm CMake 3.16+ and MSVC are on `PATH`; run from a VS Developer PowerShell prompt |
-| White flash on startup | Expected on some systems; the CSS fade-in on the model canvas mitigates this |
