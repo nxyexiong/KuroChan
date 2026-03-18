@@ -15,7 +15,7 @@ export class OpenAITTSService extends TTSService {
     this._model    = 'tts-1';
     this._voice    = 'alloy';
     this._speed    = 1.0;
-    this._pitch    = 0;    // semitones; applied via audio.playbackRate
+    this._pitch    = 2.5;  // semitones; applied via audio.playbackRate
     this._audioCtx = null;
     this._audio    = null;
     this._blobUrl  = null;

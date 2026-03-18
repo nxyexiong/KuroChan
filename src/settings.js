@@ -24,7 +24,7 @@ const DEFAULTS = {
       model: 'gpt-4o-mini-tts',
       voice: 'sage',
       speed: 1,
-      pitch: 0,
+      pitch: 2.5,
     },
   },
   stt: {
@@ -147,9 +147,9 @@ const MODAL_HTML = `
         <div class="input-row">
           <input type="number" id="tts-openai-speed-input" min="0.25" max="4" step="0.05" placeholder="default: 1" />
         </div>
-        <label for="tts-openai-pitch-input">Pitch <span class="settings-hint">(semitones, −12 to +12, default 0)</span></label>
+        <label for="tts-openai-pitch-input">Pitch <span class="settings-hint">(semitones, −12 to +12, default 2.5)</span></label>
         <div class="input-row">
-          <input type="number" id="tts-openai-pitch-input" min="-12" max="12" step="0.5" placeholder="default: 0" />
+          <input type="number" id="tts-openai-pitch-input" min="-12" max="12" step="0.5" placeholder="default: 2.5" />
         </div>
         </div>
       </details>
