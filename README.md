@@ -4,12 +4,6 @@ A transparent, frameless desktop mascot built with **Electron**, **PixiJS v6**, 
 
 ---
 
-## Screenshot
-
-![KuroChan](screenshot.png)
-
----
-
 ## Features
 
 - Transparent, always-on-top frameless window with a draggable, zoomable Live2D model
