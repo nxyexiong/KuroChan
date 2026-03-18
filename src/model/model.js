@@ -65,6 +65,7 @@ export async function loadModel(modelPath, modelScale = 100) {
   _fitModel(model, modelScale);
   app.renderer.on('resize', () => _fitModel(model, modelScale));
   _enableDrag(model);
+  _enableWheel(model);
 
   setStatus('✓ Model loaded');
   hideStatusAfter(3000);
@@ -114,4 +115,14 @@ function _enableDrag(model) {
   });
 
   window.addEventListener('pointerup', () => { dragging = false; });
+}
+
+function _enableWheel(model) {
+  app.view.addEventListener('wheel', (e) => {
+    e.preventDefault();
+    // Scale by ±5% per notch; clamp to a sensible range.
+    const factor = e.deltaY < 0 ? 1.05 : 1 / 1.05;
+    const next   = Math.max(0.05, Math.min(20, model.scale.x * factor));
+    model.scale.set(next);
+  }, { passive: false });
 }
