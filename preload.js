@@ -8,6 +8,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   openFileDialog:   (opts) => ipcRenderer.invoke('open-file-dialog', opts),
   getMemory:        () => ipcRenderer.invoke('get-memory'),
   saveMemory:       (entry) => ipcRenderer.invoke('save-memory', entry),
-  sttCheck:         (payload) => ipcRenderer.invoke('stt-check', payload),
-  sttTranscribe:    (payload) => ipcRenderer.invoke('stt-transcribe', payload),
+  sttCheck:              (payload) => ipcRenderer.invoke('stt-check', payload),
+  sttTranscribe:         (payload) => ipcRenderer.invoke('stt-transcribe', payload),
+  deviceIdentityGenerate: ()       => ipcRenderer.invoke('device-identity-generate'),
+  deviceIdentitySign:    (args)    => ipcRenderer.invoke('device-identity-sign', args),
 });

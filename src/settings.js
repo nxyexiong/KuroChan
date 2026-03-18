@@ -14,7 +14,7 @@ const DEFAULTS = {
     },
     openclaw: {
       url:        'ws://127.0.0.1:18789',
-      sessionKey: 'global',
+      sessionKey: 'main',
     },
   },
   tts: {
@@ -45,7 +45,7 @@ const MODAL_HTML = `
     <h3>Settings</h3>
     <div class="modal-body">
 
-    <details class="settings-section" open>
+    <details class="settings-section">
       <summary class="settings-section-title">Model</summary>
       <div class="settings-section-body">
       <label for="model-dir-input">Model folder</label>
@@ -56,7 +56,7 @@ const MODAL_HTML = `
       </div>
     </details>
 
-    <details class="settings-section" open>
+    <details class="settings-section">
       <summary class="settings-section-title">LLM</summary>
       <div class="settings-section-body">
       <label for="llm-service-select">Service</label>
@@ -67,7 +67,7 @@ const MODAL_HTML = `
           <option value="openclaw">OpenClaw</option>
         </select>
       </div>
-      <details class="settings-subsection" open>
+      <details class="settings-subsection">
         <summary class="settings-subsection-title">Character</summary>
         <div class="settings-subsection-body">
         <div class="input-row">
@@ -75,7 +75,7 @@ const MODAL_HTML = `
         </div>
         </div>
       </details>
-      <details class="settings-subsection" open>
+      <details class="settings-subsection">
         <summary class="settings-subsection-title">OpenAI</summary>
         <div class="settings-subsection-body">
         <label for="llm-openai-api-key-input">API key</label>
@@ -103,16 +103,16 @@ const MODAL_HTML = `
         <div class="input-row">
           <input type="password" id="llm-openclaw-password-input" placeholder="(optional)" autocomplete="off" />
         </div>
-        <label for="llm-openclaw-session-input">Session key <span class="settings-hint">(default: global)</span></label>
+        <label for="llm-openclaw-session-input">Session key <span class="settings-hint">(default: main)</span></label>
         <div class="input-row">
-          <input type="text" id="llm-openclaw-session-input" placeholder="global" />
+          <input type="text" id="llm-openclaw-session-input" placeholder="main" />
         </div>
         </div>
       </details>
       </div>
     </details>
 
-      <details class="settings-section" open>
+      <details class="settings-section">
       <summary class="settings-section-title">TTS</summary>
       <div class="settings-section-body">
       <label for="tts-service-select">Service</label>
@@ -122,7 +122,7 @@ const MODAL_HTML = `
           <option value="openai-tts">OpenAI TTS</option>
         </select>
       </div>
-      <details class="settings-subsection" open>
+      <details class="settings-subsection">
         <summary class="settings-subsection-title">OpenAI TTS</summary>
         <div class="settings-subsection-body">
         <label for="tts-openai-api-key-input">API key</label>
@@ -146,7 +146,7 @@ const MODAL_HTML = `
       </div>
     </details>
 
-    <details class="settings-section" open>
+    <details class="settings-section">
       <summary class="settings-section-title">STT</summary>
       <div class="settings-section-body">
       <label for="stt-service-select">Service</label>
@@ -156,7 +156,7 @@ const MODAL_HTML = `
           <option value="whisper-local">Whisper (local)</option>
         </select>
       </div>
-      <details class="settings-subsection" open>
+      <details class="settings-subsection">
         <summary class="settings-subsection-title">Voice detection</summary>
         <div class="settings-subsection-body">
         <label for="stt-vad-threshold-input">Voice threshold <span class="settings-hint">(RMS 0.0–1.0, lower = more sensitive)</span></label>
@@ -169,7 +169,7 @@ const MODAL_HTML = `
         </div>
         </div>
       </details>
-      <details class="settings-subsection" open>
+      <details class="settings-subsection">
         <summary class="settings-subsection-title">Whisper (local)</summary>
         <div class="settings-subsection-body">
         <label for="stt-whisper-model-path-input">Model file <span class="settings-hint">(.bin from huggingface.co/ggerganov/whisper.cpp)</span></label>
@@ -210,7 +210,6 @@ export function initSettings() {
   const llmCharacterInput      = document.getElementById('llm-character-input');
   const llmOpenaiApiKeyInput   = document.getElementById('llm-openai-api-key-input');
   const llmOpenaiModelInput    = document.getElementById('llm-openai-model-input');
-  const llmOpenclawSection     = document.getElementById('llm-openclaw-section');
   const llmOpenclawUrlInput    = document.getElementById('llm-openclaw-url-input');
   const llmOpenclawTokenInput  = document.getElementById('llm-openclaw-token-input');
   const llmOpenclawPasswordInput = document.getElementById('llm-openclaw-password-input');
@@ -246,7 +245,6 @@ export function initSettings() {
     llmOpenclawTokenInput.value    = llmOpenclaw.token      || '';
     llmOpenclawPasswordInput.value = llmOpenclaw.password   || '';
     llmOpenclawSessionInput.value  = llmOpenclaw.sessionKey || '';
-    updateLlmSections();
     const tts = config.tts ?? {};
     const ttsOpenai = tts.openai ?? {};
     ttsServiceSelect.value     = tts.service          || DEFAULTS.tts.service;
@@ -267,12 +265,6 @@ export function initSettings() {
   });
 
   cancelBtn.addEventListener('click', () => modal.classList.add('hidden'));
-
-  function updateLlmSections() {
-    const svc = llmServiceSelect.value;
-    llmOpenclawSection.style.display = svc === 'openclaw' ? '' : 'none';
-  }
-  llmServiceSelect.addEventListener('change', updateLlmSections);
 
   browseBtn.addEventListener('click', async () => {
     const dir = await window.electronAPI.openFolderDialog();

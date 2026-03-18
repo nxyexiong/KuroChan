@@ -16,9 +16,14 @@
  *      – state "error"  → report error
  */
 import { LLMService } from './llm-service.js';
+import {
+  signDevicePayload as _signDevicePayload,
+  loadOrCreateDeviceIdentity as _loadOrCreateDeviceIdentity,
+  buildConnectPayload,
+} from './openclaw-device-identity.js';
 
 const DEFAULT_URL = 'ws://127.0.0.1:18789';
-const PROTOCOL_VERSION = 1;
+const PROTOCOL_VERSION = 3;
 const REQUEST_TIMEOUT_MS = 30_000;
 const MAX_BACKOFF_MS = 30_000;
 
@@ -57,7 +62,7 @@ export class OpenClawLLMService extends LLMService {
     this._url        = DEFAULT_URL;
     this._token      = '';
     this._password   = '';
-    this._sessionKey = 'global';
+    this._sessionKey = 'main';
 
     /** @type {WebSocket|null} */
     this._ws         = null;
@@ -69,8 +74,11 @@ export class OpenClawLLMService extends LLMService {
     this._stopped    = true;
     this._backoffMs  = 1000;
 
-    /** Active streaming call: {runId, onChunk, onDone, onError} | null */
+    /** Active streaming call: {runId, onChunk, onDone, onError, streamText} | null */
     this._activeStream = null;
+
+    /** Cached device identity (loaded lazily on first connect). */
+    this._deviceIdentity = null;
   }
 
   // ── LLMService interface ──────────────────────────────────────────────────
@@ -78,7 +86,7 @@ export class OpenClawLLMService extends LLMService {
   configure({ openclaw = {} } = {}) {
     const newToken      = (openclaw.token      || '').trim();
     const newPassword   = (openclaw.password   || '').trim();
-    const newSessionKey = (openclaw.sessionKey || 'global').trim() || 'global';
+    const newSessionKey = (openclaw.sessionKey || 'main').trim() || 'main';
     const newUrl        = (openclaw.url        || DEFAULT_URL).trim() || DEFAULT_URL;
 
     const urlChanged = newUrl !== this._url;
@@ -121,7 +129,7 @@ export class OpenClawLLMService extends LLMService {
     }
 
     const runId = crypto.randomUUID();
-    this._activeStream = { runId, onChunk, onDone, onError };
+    this._activeStream = { runId, onChunk, onDone, onError, streamText: '' };
 
     this._request('chat.send', {
       sessionKey:     this._sessionKey,
@@ -239,8 +247,14 @@ export class OpenClawLLMService extends LLMService {
     const { state, message, errorMessage } = payload;
 
     if (state === 'delta') {
-      const text = extractTextFromMessage(message);
-      if (text) stream.onChunk(text);
+      // delta events carry the full accumulated text so far, not just the new chunk.
+      // Only emit the suffix that hasn't been sent yet.
+      const fullText = extractTextFromMessage(message);
+      if (fullText && fullText.length > stream.streamText.length) {
+        const chunk = fullText.slice(stream.streamText.length);
+        stream.streamText = fullText;
+        stream.onChunk(chunk);
+      }
     } else if (state === 'final') {
       this._activeStream = null;
       stream.onDone();
@@ -271,11 +285,46 @@ export class OpenClawLLMService extends LLMService {
   // ── Protocol requests ─────────────────────────────────────────────────────
 
   /**
-   * Send the connect handshake. The nonce is provided by the server's
-   * connect.challenge event but is not used in shared-token / password auth
-   * (only in device-identity signing, which this lightweight client omits).
+   * Send the connect handshake, signing the server-provided nonce with the
+   * device's Ed25519 private key so the gateway accepts the Control-UI client.
    */
-  _sendConnect(/* nonce */) {
+  async _sendConnect(nonce) {
+    // Load or generate the persistent device identity on first use.
+    if (!this._deviceIdentity) {
+      try {
+        this._deviceIdentity = await _loadOrCreateDeviceIdentity();
+      } catch (err) {
+        console.warn('[OpenClaw] Could not load device identity:', err.message);
+      }
+    }
+
+    // Full operator scopes sent by the Control UI — the payload signature must
+    // cover the exact same comma-joined string, so define it once here.
+    const role   = 'operator';
+    const scopes = ['operator.admin', 'operator.approvals', 'operator.pairing'];
+
+    let device;
+    const identity = this._deviceIdentity;
+    if (identity) {
+      try {
+        const signedAtMs = Date.now();
+        const payload = buildConnectPayload({
+          deviceId: identity.deviceId,
+          clientId: 'openclaw-control-ui',
+          mode:     'webchat',
+          role,
+          scopes,
+          signedAtMs,
+          token:    this._token || '',
+          nonce,
+        });
+        const signature = await _signDevicePayload(identity.privateKey, payload);
+        device = { id: identity.deviceId, publicKey: identity.publicKey, signature, signedAt: signedAtMs, nonce };
+      } catch (err) {
+        console.error('[OpenClaw] Failed to sign device payload:', err.message);
+      }
+    }
+
     const auth = this._token
       ? { token: this._token }
       : this._password
@@ -286,15 +335,15 @@ export class OpenClawLLMService extends LLMService {
       minProtocol: PROTOCOL_VERSION,
       maxProtocol: PROTOCOL_VERSION,
       client: {
-        id:          'kurochan',
-        displayName: 'KuroChan',
-        version:     '1.0.0',
-        platform:    'browser',
-        mode:        'ui',
+        id:       'openclaw-control-ui',
+        version:  '1.0.0',
+        platform: typeof navigator !== 'undefined' ? (navigator.platform || 'web') : 'web',
+        mode:     'webchat',
       },
-      caps:   [],
-      role:   'operator',
-      scopes: ['operator.admin'],
+      device,
+      caps:   ['tool-events'],
+      role,
+      scopes,
       auth,
     })
       .then(() => { this._connected = true; })

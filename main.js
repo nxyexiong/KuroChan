@@ -90,6 +90,9 @@ function createWindow() {
   });
 
   mainWindow.loadFile('index.html');
+  if (process.argv.includes('--devtools')) {
+    mainWindow.webContents.openDevTools({ mode: 'detach' });
+  }
 
   // Recreate window on renderer crash instead of silently disappearing
   mainWindow.webContents.on('render-process-gone', (_event, details) => {
@@ -111,6 +114,24 @@ app.whenReady().then(() => {
     if (permission === 'media') return true;
     return false;
   });
+
+  // Rewrite the Origin header for WebSocket upgrade requests to the OpenClaw
+  // gateway so the gateway's origin-allowlist check passes. The renderer runs
+  // from file:// which the gateway rejects; we spoof the origin to match the
+  // gateway host (the only host that is always allowed without extra config).
+  session.defaultSession.webRequest.onBeforeSendHeaders(
+    { urls: ['ws://*/*', 'wss://*/*'] },
+    (details, callback) => {
+      const headers = { ...details.requestHeaders };
+      if (headers['Origin'] === 'file://') {
+        try {
+          const u = new URL(details.url);
+          headers['Origin'] = `${u.protocol === 'wss:' ? 'https' : 'http'}://${u.host}`;
+        } catch { /* leave as-is if URL is unparseable */ }
+      }
+      callback({ requestHeaders: headers });
+    },
+  );
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
@@ -243,4 +264,39 @@ ipcMain.handle('stt-transcribe', async (event, { samplesBuffer, modelPath, nThre
   const transcript = outBuf.slice(0, n - 1).toString('utf8');
   console.log(`[Whisper] language="${language}"  transcript: ${transcript}`);
   return transcript;
+});
+
+// ── Ed25519 device identity (OpenClaw gateway auth) ───────────────────────────
+// Web Crypto in the Electron renderer doesn't support Ed25519 (Chrome 120 /
+// Electron 28). Offload to the main process where Node's crypto works.
+ipcMain.handle('device-identity-generate', () => {
+  const nodeCrypto = require('crypto');
+  const { privateKey, publicKey } = nodeCrypto.generateKeyPairSync('ed25519', {
+    publicKeyEncoding:  { type: 'spki',  format: 'der' },
+    privateKeyEncoding: { type: 'pkcs8', format: 'der' },
+  });
+  // Extract raw 32-byte public key (SPKI DER: 12-byte header + 32 bytes).
+  const pubRaw  = publicKey.slice(12);
+  // Extract 32-byte seed from PKCS#8 DER (16-byte header + 32 bytes).
+  const privSeed = privateKey.slice(16, 48);
+  const hashBuf  = nodeCrypto.createHash('sha256').update(pubRaw).digest();
+  const deviceId = hashBuf.toString('hex');
+  const b64u = (buf) => buf.toString('base64').replaceAll('+', '-').replaceAll('/', '_').replace(/=+$/, '');
+  return { deviceId, publicKey: b64u(pubRaw), privateKey: b64u(privSeed) };
+});
+
+ipcMain.handle('device-identity-sign', (_event, { privateKeyB64u, payload }) => {
+  const nodeCrypto = require('crypto');
+  // Decode base64url seed and wrap back into PKCS#8 DER for Node's createPrivateKey.
+  const PKCS8_PREFIX = Buffer.from([
+    0x30, 0x2e, 0x02, 0x01, 0x00, 0x30, 0x05, 0x06,
+    0x03, 0x2b, 0x65, 0x70, 0x04, 0x22, 0x04, 0x20,
+  ]);
+  const norm   = privateKeyB64u.replaceAll('-', '+').replaceAll('_', '/');
+  const padded = norm + '='.repeat((4 - (norm.length % 4)) % 4);
+  const seed   = Buffer.from(padded, 'base64');
+  const pkcs8  = Buffer.concat([PKCS8_PREFIX, seed]);
+  const privKey = nodeCrypto.createPrivateKey({ key: pkcs8, format: 'der', type: 'pkcs8' });
+  const sig = nodeCrypto.sign(null, Buffer.from(payload, 'utf8'), privKey);
+  return sig.toString('base64').replaceAll('+', '-').replaceAll('/', '_').replace(/=+$/, '');
 });

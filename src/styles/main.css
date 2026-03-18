@@ -49,9 +49,11 @@ canvas {
 
 #status {
   position: fixed;
-  bottom: 188px;
+  top: 50%;
   left: 50%;
-  transform: translateX(-50%);
+  transform: translate(-50%, -50%);
+  z-index: 1000;
+  max-width: 80%;
   color: #fff;
   font-family: sans-serif;
   font-size: 12px;
@@ -59,7 +61,9 @@ canvas {
   padding: 4px 10px;
   border-radius: 4px;
   pointer-events: none;
-  white-space: nowrap;
+  white-space: normal;
+  word-break: break-word;
+  text-align: center;
 }
 
 /* ── Chat panel ───────────────────────────────────────────────────────────── */
