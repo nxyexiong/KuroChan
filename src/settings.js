@@ -8,9 +8,9 @@ const DEFAULTS = {
   },
   llm: {
     service: 'openai',
-    character: 'You are kuro-chan, a friendly anime-style assistant.',
+    character: 'You are kuro-chan(クロちゃん), a friendly anime-style assistant.',
     openai: {
-      model: 'gpt-5-mini',
+      model: 'gpt-4.1-nano',
     },
   },
   tts: {
@@ -28,7 +28,7 @@ const DEFAULTS = {
       silenceDuration: 1500,
     },
     whisper: {
-      modelPath: 'resources/whisper/ggml-base.en.bin',
+      modelPath: 'resources/whisper/ggml-base.bin',
       nThreads:  4,
       language:  'en',
     },
@@ -66,7 +66,7 @@ const MODAL_HTML = `
         <summary class="settings-subsection-title">Character</summary>
         <div class="settings-subsection-body">
         <div class="input-row">
-          <textarea id="llm-character-input" rows="4" placeholder="default: You are kuro-chan, a friendly anime-style assistant."></textarea>
+          <textarea id="llm-character-input" rows="4" placeholder="default: You are kuro-chan(クロちゃん), a friendly anime-style assistant."></textarea>
         </div>
         </div>
       </details>
@@ -79,7 +79,7 @@ const MODAL_HTML = `
         </div>
         <label for="llm-openai-model-input">Model name</label>
         <div class="input-row">
-          <input type="text" id="llm-openai-model-input" placeholder="default: gpt-5-mini" />
+          <input type="text" id="llm-openai-model-input" placeholder="default: gpt-4.1-nano" />
         </div>
         </div>
       </details>
@@ -148,7 +148,7 @@ const MODAL_HTML = `
         <div class="settings-subsection-body">
         <label for="stt-whisper-model-path-input">Model file <span class="settings-hint">(.bin from huggingface.co/ggerganov/whisper.cpp)</span></label>
         <div class="input-row">
-          <input type="text" id="stt-whisper-model-path-input" placeholder="default: resources/whisper/ggml-base.en.bin" />
+          <input type="text" id="stt-whisper-model-path-input" placeholder="default: resources/whisper/ggml-base.bin" />
           <button class="btn-modal" id="btn-browse-whisper-model">Browse…</button>
         </div>
         <label for="stt-whisper-threads-input">CPU threads <span class="settings-hint">(1–16)</span></label>
