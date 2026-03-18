@@ -6,6 +6,5 @@ release/
 # CMake build output
 third_party/build/
 
-# Compiled DLL and model (large binaries — download/build locally)
+# Compiled DLL
 resources/whisper/*.dll
-resources/whisper/*.bin

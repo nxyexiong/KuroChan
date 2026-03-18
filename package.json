@@ -1,6 +1,6 @@
 {
   "name": "kurochan",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "KuroChan — Live2D desktop mascot with transparent background using Electron + PixiJS",
   "main": "main.js",
   "scripts": {
@@ -33,6 +33,7 @@
     "asarUnpack": [
       "resources/whisper/**"
     ],
+    "extraResources": [],
     "directories": {
       "output": "release",
       "buildResources": "build-resources"
@@ -54,7 +55,6 @@
       "!*.ps1",
       "!*.md"
     ],
-    "extraResources": [],
     "win": {
       "target": [
         {

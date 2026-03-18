@@ -15,10 +15,33 @@ if (process.platform === 'win32') {
 // ── Whisper / koffi state ─────────────────────────────────────────────────────
 let _whisperTranscribeFn = null; // koffi function handle, loaded lazily
 
+// In a packaged build (asar), the DLL is extracted to app.asar.unpacked by
+// electron-builder's asarUnpack setting. koffi.load() is a native OS call that
+// bypasses Electron's ASAR path patching, so we must resolve to the real path.
+function getWhisperDLLPath() {
+  const relative = path.join('resources', 'whisper', 'whisper_kuro.dll');
+  if (app.isPackaged) {
+    return path.join(process.resourcesPath, 'app.asar.unpacked', relative);
+  }
+  return path.join(__dirname, relative);
+}
+
+// Resolve a model path (possibly relative) to an absolute path.
+// Relative paths are treated as relative to the app install directory in
+// packaged builds (where resources/ is process.resourcesPath) and to
+// __dirname (project root) in development.
+function resolveModelPath(modelPath) {
+  if (path.isAbsolute(modelPath)) return modelPath;
+  if (app.isPackaged) {
+    return path.join(path.dirname(process.resourcesPath), modelPath);
+  }
+  return path.join(__dirname, modelPath);
+}
+
 function loadWhisperDLL() {
   if (_whisperTranscribeFn) return true;
 
-  const dllPath = path.join(__dirname, 'resources', 'whisper', 'whisper_kuro.dll');
+  const dllPath = getWhisperDLLPath();
   if (!fs.existsSync(dllPath)) return false;
 
   try {
@@ -215,13 +238,11 @@ ipcMain.handle('open-file-dialog', async (event, { title, filters } = {}) => {
 
 // Validate that the DLL and model file are present before the user tries to record
 ipcMain.handle('stt-check', (_event, { modelPath }) => {
-  const dllPath = path.join(__dirname, 'resources', 'whisper', 'whisper_kuro.dll');
+  const dllPath = getWhisperDLLPath();
   if (!fs.existsSync(dllPath)) {
     return { ok: false, error: 'whisper_kuro.dll not found. Run: npm run build:whisper' };
   }
-  const absModelPath = path.isAbsolute(modelPath)
-    ? modelPath
-    : path.join(__dirname, modelPath);
+  const absModelPath = resolveModelPath(modelPath);
   if (!fs.existsSync(absModelPath)) {
     return { ok: false, error: `Whisper model not found: ${absModelPath}\nDownload a .bin model and set its path in Settings -> STT.` };
   }
@@ -234,13 +255,11 @@ ipcMain.handle('stt-transcribe', async (event, { samplesBuffer, modelPath, nThre
     throw new Error(
       'whisper_kuro.dll not found.\n' +
       'Run: npm run build:whisper\n' +
-      'Then download a GGML model to resources/whisper/'
+      'Then place a GGML .bin model in resources/ and set its path in Settings -> STT.'
     );
   }
 
-  const absModelPath = path.isAbsolute(modelPath)
-    ? modelPath
-    : path.join(__dirname, modelPath);
+  const absModelPath = resolveModelPath(modelPath);
 
   if (!fs.existsSync(absModelPath)) {
     throw new Error(`Whisper model not found: ${absModelPath}`);

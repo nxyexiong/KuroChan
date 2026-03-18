@@ -41,7 +41,7 @@ function resampleTo16k(channelData, srcRate) {
 export class WhisperSTTService extends STTService {
   constructor() {
     super();
-    this._modelPath    = 'resources/whisper/ggml-base.bin';
+    this._modelPath    = '';
     this._nThreads     = 4;
     this._language     = 'en';
     this._stream       = null;

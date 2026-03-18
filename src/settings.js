@@ -34,7 +34,7 @@ const DEFAULTS = {
       silenceDuration: 1500,
     },
     whisper: {
-      modelPath: 'resources/whisper/ggml-base.bin',
+      modelPath: '',
       nThreads:  4,
       language:  'en',
     },
@@ -184,7 +184,7 @@ const MODAL_HTML = `
         <div class="settings-subsection-body">
         <label for="stt-whisper-model-path-input">Model file <span class="settings-hint">(.bin from huggingface.co/ggerganov/whisper.cpp)</span></label>
         <div class="input-row">
-          <input type="text" id="stt-whisper-model-path-input" placeholder="default: resources/whisper/ggml-base.bin" />
+          <input type="text" id="stt-whisper-model-path-input" placeholder="" />
           <button class="btn-modal" id="btn-browse-whisper-model">Browse…</button>
         </div>
         <label for="stt-whisper-threads-input">CPU threads <span class="settings-hint">(1–16)</span></label>
