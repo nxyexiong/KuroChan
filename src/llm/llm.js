@@ -17,8 +17,10 @@
  */
 
 import { OpenAILLMService } from './openai-llm-service.js';
+import { OpenClawLLMService } from './openclaw-llm-service.js';
 const SERVICES = {
-  'openai': OpenAILLMService,
+  'openai':   OpenAILLMService,
+  'openclaw': OpenClawLLMService,
 };
 const DEFAULT_SERVICE = 'openai';
 // ── Minimal event emitter used as the output stream ───────────────────────────

@@ -4,7 +4,7 @@
   "description": "KuroChan — Live2D desktop mascot with transparent background using Electron + PixiJS",
   "main": "main.js",
   "scripts": {
-    "build:whisper": "powershell -ExecutionPolicy Bypass -File scripts/build-whisper.ps1",
+    "build:whisper": "scripts\\build-whisper.cmd",
     "build:js": "webpack --config webpack.config.js",
     "build": "npm run build:js",
     "start": "npm run build:js && electron .",

@@ -12,6 +12,10 @@ const DEFAULTS = {
     openai: {
       model: 'gpt-4.1-nano',
     },
+    openclaw: {
+      url:        'ws://127.0.0.1:18789',
+      sessionKey: 'global',
+    },
   },
   tts: {
     service: 'openai-tts',
@@ -60,6 +64,7 @@ const MODAL_HTML = `
         <select id="llm-service-select">
           <option value="">— none —</option>
           <option value="openai">OpenAI</option>
+          <option value="openclaw">OpenClaw</option>
         </select>
       </div>
       <details class="settings-subsection" open>
@@ -80,6 +85,27 @@ const MODAL_HTML = `
         <label for="llm-openai-model-input">Model name</label>
         <div class="input-row">
           <input type="text" id="llm-openai-model-input" placeholder="default: gpt-4.1-nano" />
+        </div>
+        </div>
+      </details>
+      <details class="settings-subsection" id="llm-openclaw-section">
+        <summary class="settings-subsection-title">OpenClaw</summary>
+        <div class="settings-subsection-body">
+        <label for="llm-openclaw-url-input">Gateway URL <span class="settings-hint">(default: ws://127.0.0.1:18789)</span></label>
+        <div class="input-row">
+          <input type="text" id="llm-openclaw-url-input" placeholder="ws://127.0.0.1:18789" />
+        </div>
+        <label for="llm-openclaw-token-input">Token <span class="settings-hint">(shared token, leave blank if unauthenticated)</span></label>
+        <div class="input-row">
+          <input type="password" id="llm-openclaw-token-input" placeholder="(optional)" autocomplete="off" />
+        </div>
+        <label for="llm-openclaw-password-input">Password <span class="settings-hint">(gateway password, alternative to token)</span></label>
+        <div class="input-row">
+          <input type="password" id="llm-openclaw-password-input" placeholder="(optional)" autocomplete="off" />
+        </div>
+        <label for="llm-openclaw-session-input">Session key <span class="settings-hint">(default: global)</span></label>
+        <div class="input-row">
+          <input type="text" id="llm-openclaw-session-input" placeholder="global" />
         </div>
         </div>
       </details>
@@ -184,6 +210,11 @@ export function initSettings() {
   const llmCharacterInput      = document.getElementById('llm-character-input');
   const llmOpenaiApiKeyInput   = document.getElementById('llm-openai-api-key-input');
   const llmOpenaiModelInput    = document.getElementById('llm-openai-model-input');
+  const llmOpenclawSection     = document.getElementById('llm-openclaw-section');
+  const llmOpenclawUrlInput    = document.getElementById('llm-openclaw-url-input');
+  const llmOpenclawTokenInput  = document.getElementById('llm-openclaw-token-input');
+  const llmOpenclawPasswordInput = document.getElementById('llm-openclaw-password-input');
+  const llmOpenclawSessionInput  = document.getElementById('llm-openclaw-session-input');
   const ttsServiceSelect      = document.getElementById('tts-service-select');
   const ttsOpenaiApiKeyInput   = document.getElementById('tts-openai-api-key-input');
   const ttsOpenaiModelInput    = document.getElementById('tts-openai-model-input');
@@ -210,6 +241,12 @@ export function initSettings() {
     llmCharacterInput.value    = llm.character        || DEFAULTS.llm.character;
     llmOpenaiApiKeyInput.value = llmOpenai.apiKey    || '';
     llmOpenaiModelInput.value  = llmOpenai.model     || DEFAULTS.llm.openai.model;
+    const llmOpenclaw = llm.openclaw ?? {};
+    llmOpenclawUrlInput.value      = llmOpenclaw.url        || '';
+    llmOpenclawTokenInput.value    = llmOpenclaw.token      || '';
+    llmOpenclawPasswordInput.value = llmOpenclaw.password   || '';
+    llmOpenclawSessionInput.value  = llmOpenclaw.sessionKey || '';
+    updateLlmSections();
     const tts = config.tts ?? {};
     const ttsOpenai = tts.openai ?? {};
     ttsServiceSelect.value     = tts.service          || DEFAULTS.tts.service;
@@ -230,6 +267,12 @@ export function initSettings() {
   });
 
   cancelBtn.addEventListener('click', () => modal.classList.add('hidden'));
+
+  function updateLlmSections() {
+    const svc = llmServiceSelect.value;
+    llmOpenclawSection.style.display = svc === 'openclaw' ? '' : 'none';
+  }
+  llmServiceSelect.addEventListener('change', updateLlmSections);
 
   browseBtn.addEventListener('click', async () => {
     const dir = await window.electronAPI.openFolderDialog();
@@ -256,6 +299,12 @@ export function initSettings() {
         openai: {
           apiKey: llmOpenaiApiKeyInput.value.trim() || undefined,
           model:  llmOpenaiModelInput.value.trim()  || DEFAULTS.llm.openai.model,
+        },
+        openclaw: {
+          url:        llmOpenclawUrlInput.value.trim()      || undefined,
+          token:      llmOpenclawTokenInput.value.trim()    || undefined,
+          password:   llmOpenclawPasswordInput.value.trim() || undefined,
+          sessionKey: llmOpenclawSessionInput.value.trim()  || undefined,
         },
       },
       tts: {
