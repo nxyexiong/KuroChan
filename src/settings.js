@@ -5,6 +5,7 @@
 const DEFAULTS = {
   model: {
     modelDir: 'assets/models/Haru',
+    modelScale: 100,
   },
   llm: {
     service: 'openai',
@@ -52,6 +53,10 @@ const MODAL_HTML = `
       <div class="input-row">
         <input type="text" id="model-dir-input" placeholder="default: assets/models/Haru" />
         <button class="btn-modal" id="btn-browse">Browse…</button>
+      </div>
+      <label for="model-scale-input">Size <span class="settings-hint">(% of screen fit, default: 100)</span></label>
+      <div class="input-row">
+        <input type="number" id="model-scale-input" min="1" max="500" step="5" placeholder="default: 100" />
       </div>
       </div>
     </details>
@@ -206,6 +211,7 @@ export function initSettings() {
 
   const modal                    = document.getElementById('settings-modal');
   const modelDirInput            = document.getElementById('model-dir-input');
+  const modelScaleInput           = document.getElementById('model-scale-input');
   const llmServiceSelect      = document.getElementById('llm-service-select');
   const llmCharacterInput      = document.getElementById('llm-character-input');
   const llmOpenaiApiKeyInput   = document.getElementById('llm-openai-api-key-input');
@@ -236,6 +242,7 @@ export function initSettings() {
     const llm   = config.llm   ?? {};
     const llmOpenai = llm.openai ?? {};
     modelDirInput.value        = model.modelDir      || DEFAULTS.model.modelDir;
+    modelScaleInput.value      = model.modelScale    ?? DEFAULTS.model.modelScale;
     llmServiceSelect.value     = llm.service         || DEFAULTS.llm.service;
     llmCharacterInput.value    = llm.character        || DEFAULTS.llm.character;
     llmOpenaiApiKeyInput.value = llmOpenai.apiKey    || '';
@@ -283,7 +290,8 @@ export function initSettings() {
     await window.electronAPI.saveConfig({
       general: {},
       model: {
-        modelDir: modelDirInput.value.trim() || DEFAULTS.model.modelDir,
+        modelDir:   modelDirInput.value.trim() || DEFAULTS.model.modelDir,
+        modelScale: modelScaleInput.value !== '' ? Number(modelScaleInput.value) : DEFAULTS.model.modelScale,
       },
       llm: {
         service: llmServiceSelect.value || DEFAULTS.llm.service,

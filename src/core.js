@@ -52,12 +52,12 @@ async function initGeneral(_generalConfig) {
   // reserved for future general settings
 }
 
-async function initModel({ modelPath }) {
-  if (!modelPath) {
+async function initModel(modelConfig) {
+  if (!modelConfig.modelPath) {
     setStatus('⚙ No model found — click ⚙ to choose a model folder');
     return;
   }
-  await loadModel(modelPath);
+  await loadModel(modelConfig.modelPath, modelConfig.modelScale);
 }
 
 function initLLM(llmConfig) {

@@ -33,7 +33,7 @@ export function setMouthOpen(value) {
 }
 
 // ── Load and display a model ──────────────────────────────────────────────────
-export async function loadModel(modelPath) {
+export async function loadModel(modelPath, modelScale = 100) {
   // Destroy any previously loaded model
   app.stage.removeChildren();
 
@@ -62,8 +62,8 @@ export async function loadModel(modelPath) {
     _origCoreUpdate();
   };
 
-  _fitModel(model);
-  app.renderer.on('resize', () => _fitModel(model));
+  _fitModel(model, modelScale);
+  app.renderer.on('resize', () => _fitModel(model, modelScale));
   _enableDrag(model);
 
   setStatus('✓ Model loaded');
@@ -72,11 +72,11 @@ export async function loadModel(modelPath) {
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-function _fitModel(model) {
+function _fitModel(model, modelScale = 100) {
   const scale = Math.min(
     app.screen.width  / model.internalModel.originalWidth,
     app.screen.height / model.internalModel.originalHeight,
-  ) * 0.85;
+  ) * (modelScale / 100);
 
   model.scale.set(scale);
   model.anchor.set(0.5, 0.5);
