@@ -15,6 +15,7 @@ export class OpenAITTSService extends TTSService {
     this._model    = 'tts-1';
     this._voice    = 'alloy';
     this._speed    = 1.0;
+    this._pitch    = 0;    // semitones; applied via audio.playbackRate
     this._audioCtx = null;
     this._audio    = null;
     this._blobUrl  = null;
@@ -27,8 +28,7 @@ export class OpenAITTSService extends TTSService {
     if (apiKey !== undefined && apiKey !== '') this._apiKey = apiKey;
     if (model  !== undefined && model  !== '') this._model  = model;
     if (voice  !== undefined && voice  !== '') this._voice  = voice;
-    if (speed  !== undefined)                  this._speed  = speed;
-  }
+    if (speed  !== undefined)                  this._speed  = speed;    if (openai.pitch !== undefined)            this._pitch  = openai.pitch ?? 0;  }
 
   speak(text, onDone, onError, onVolume) {
     if (!this._apiKey) {
@@ -75,6 +75,13 @@ export class OpenAITTSService extends TTSService {
 
         const audio = new Audio(msUrl);
         this._audio = audio;
+
+        // Apply pitch shift via playbackRate (semitones → rate = 2^(n/12)).
+        // preservesPitch=false lets rate affect pitch instead of tempo.
+        if (this._pitch !== 0) {
+          audio.playbackRate  = Math.pow(2, this._pitch / 12);
+          audio.preservesPitch = false;
+        }
 
         const webAudioSource = this._audioCtx.createMediaElementSource(audio);
         const analyser       = this._audioCtx.createAnalyser();
