@@ -1,25 +1,24 @@
 /**
  * openai-tts-service.js — OpenAI TTS (main process).
- * Fetches MP3 audio from OpenAI, transcodes to AAC via ffmpeg,
- * and returns a Readable stream of AAC data for chunked playback.
+ * Fetches AAC audio directly from OpenAI and returns a Readable stream
+ * of AAC (ADTS) data for chunked playback — no transcoding required.
  */
-const { spawn } = require('child_process');
 const { Readable } = require('stream');
-const ffmpegPath = require('ffmpeg-static');
+const { TTSService } = require('./tts-service.js');
 
 const OPENAI_TTS_ENDPOINT = 'https://api.openai.com/v1/audio/speech';
 
-class OpenAITTSService {
+class OpenAITTSService extends TTSService {
   constructor() {
+    super();
     this._apiKey = '';
     this._model  = 'tts-1';
     this._voice  = 'alloy';
     this._speed  = 1.0;
     this._controller = null;
-    this._ffmpeg = null;
   }
 
-  configure({ openai = {} } = {}) {
+  _configure({ openai = {} } = {}) {
     const { apiKey, model, voice, speed } = openai;
     if (apiKey !== undefined && apiKey !== '') this._apiKey = apiKey;
     if (model  !== undefined && model  !== '') this._model  = model;
@@ -28,8 +27,9 @@ class OpenAITTSService {
   }
 
   /**
-   * Fetch audio from OpenAI and return a Readable stream of AAC data.
-   * The MP3 response is piped through ffmpeg for real-time transcoding.
+   * Fetch AAC audio from OpenAI and return a Readable stream.
+   * OpenAI returns AAC in ADTS framing when response_format is 'aac',
+   * so no transcoding is needed.
    * @param {string} text
    * @returns {Readable}  AAC byte stream
    */
@@ -53,7 +53,7 @@ class OpenAITTSService {
         input:           text,
         voice:           this._voice,
         speed:           this._speed,
-        response_format: 'mp3',
+        response_format: 'aac',
       }),
     }).then(async (response) => {
       if (!response.ok) {
@@ -63,48 +63,16 @@ class OpenAITTSService {
         return;
       }
 
-      // Spawn ffmpeg: MP3 stdin → AAC (ADTS framed) stdout
-      // -movflags empty_moov is not needed for ADTS; adts muxer produces
-      // self-contained frames that MediaSource can consume immediately.
-      this._ffmpeg = spawn(ffmpegPath, [
-        '-i', 'pipe:0',          // read MP3 from stdin
-        '-c:a', 'aac',           // encode to AAC
-        '-b:a', '128k',          // bitrate
-        '-f', 'adts',            // ADTS framing (streamable AAC)
-        'pipe:1',                // write to stdout
-      ], { stdio: ['pipe', 'pipe', 'ignore'] });
-
-      this._ffmpeg.stdout.on('data', (chunk) => {
-        output.push(chunk);
-      });
-
-      this._ffmpeg.stdout.on('end', () => {
-        output.push(null);  // signal stream end
-      });
-
-      this._ffmpeg.on('error', (err) => {
-        output.destroy(err);
-      });
-
-      this._ffmpeg.on('close', (code) => {
-        if (code !== 0 && !output.destroyed) {
-          output.destroy(new Error(`ffmpeg exited with code ${code}`));
-        }
-        this._ffmpeg = null;
-      });
-
-      // Pipe the HTTP response body into ffmpeg's stdin
+      // Stream AAC bytes directly — no transcoding needed
       const reader = response.body.getReader();
       const pump = async () => {
         while (true) {
           const { done, value } = await reader.read();
           if (done) {
-            this._ffmpeg?.stdin.end();
+            output.push(null);  // signal stream end
             break;
           }
-          if (this._ffmpeg?.stdin.writable) {
-            this._ffmpeg.stdin.write(Buffer.from(value));
-          }
+          output.push(Buffer.from(value));
         }
       };
       pump().catch((err) => {
@@ -124,10 +92,6 @@ class OpenAITTSService {
     if (this._controller) {
       this._controller.abort();
       this._controller = null;
-    }
-    if (this._ffmpeg) {
-      this._ffmpeg.kill('SIGTERM');
-      this._ffmpeg = null;
     }
   }
 }

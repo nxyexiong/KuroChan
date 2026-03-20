@@ -77,11 +77,17 @@ export function initTTSPlayer() {
   });
 
   // ── Stream start: prepare MediaSource ────────────────────────────────────
-  window.electronAPI.onTTSStart(() => {
+  window.electronAPI.onTTSStart(({ pitch }) => {
     _stopPlayback();
+
+    const rate = (pitch && Math.abs(pitch) >= 0.01) ? Math.pow(2, pitch / 12) : 1;
 
     _mediaSource = new MediaSource();
     _audioEl.src = URL.createObjectURL(_mediaSource);
+
+    // Set playbackRate after src assignment — setting src resets playbackRate to 1.0
+    _audioEl.playbackRate = rate;
+    _audioEl.preservesPitch = false;
 
     _mediaSource.addEventListener('sourceopen', () => {
       _sourceBuffer = _mediaSource.addSourceBuffer(AAC_MIME);

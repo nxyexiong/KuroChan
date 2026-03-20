@@ -19,11 +19,11 @@ if (process.platform === 'win32') {
 }
 
 // ── Service modules ───────────────────────────────────────────────────────────
-const { configureLLM, setOutputStream, input: llmInput, setMemory } = require('./llm/llm.js');
-const { configureTTS, speak, stopTTS, setWindow: setTTSWindow, handleVolume } = require('./tts/tts.js');
-const { configureSTT, sttAvailable, startListening, stopListening, handleAudioChunk, setWindow: setSTTWindow, setOnTranscript } = require('./stt/stt.js');
-const { handleUserMessage, handleSummarize } = require('./chat/chat-service.js');
-const { setWindow: setModelWindow } = require('./model/model.js');
+const { configureLLM, setOutputStream, input: llmInput, setMemory, summarizeSession } = require('./llm/llm.js');
+const { configureTTS, speak, stopTTS, setTTSWindow, handleVolume } = require('./tts/tts.js');
+const { configureSTT, sttAvailable, startListening, stopListening, handleAudioChunk, setSTTWindow, setOnTranscript } = require('./stt/stt.js');
+const { handleBuiltinChatMessage } = require('./chat/chat.js');
+const { setBuiltinModelWindow } = require('./model/model.js');
 
 // ── Whisper / koffi state ─────────────────────────────────────────────────────
 let _whisperTranscribeFn = null;
@@ -133,7 +133,7 @@ let mainWindow;
 function initServices(win) {
   setTTSWindow(win);
   setSTTWindow(win);
-  setModelWindow(win);
+  setBuiltinModelWindow(win);
 
   // Wire the single LLM output stream → renderer chat display + TTS
   setOutputStream({
@@ -201,10 +201,10 @@ function createWindow() {
     createWindow();
   });
 
-  // Wire up service windows and configure services once renderer is ready
-  initServices(mainWindow);
+  // Configure services first (creates service instances), then wire windows
   const config = readConfig();
   configureAllServices(config);
+  initServices(mainWindow);
 }
 
 app.whenReady().then(() => {
@@ -261,10 +261,12 @@ ipcMain.handle('get-config', () => {
 
 ipcMain.handle('save-config', (event, data) => {
   writeConfig(data);
-  // Re-configure services with new config
+  // Re-configure services with new config, then re-wire windows
   const config = readConfig();
   configureAllServices(config);
-  BrowserWindow.fromWebContents(event.sender)?.reload();
+  const win = BrowserWindow.fromWebContents(event.sender);
+  if (win) initServices(win);
+  win?.reload();
 });
 
 ipcMain.handle('open-folder-dialog', async (event) => {
@@ -296,12 +298,14 @@ ipcMain.handle('save-memory', (_event, entry) => {
 
 // ── IPC: Chat ─────────────────────────────────────────────────────────────────
 
-ipcMain.handle('chat:send', (_event, { text }) => {
-  handleUserMessage(text);
+ipcMain.handle('chat:builtin-send', (_event, { text }) => {
+  handleBuiltinChatMessage(text);
 });
 
-ipcMain.handle('chat:summarize', async () => {
-  return handleSummarize();
+// ── IPC: LLM ──────────────────────────────────────────────────────────────────
+
+ipcMain.handle('llm:summarize', async () => {
+  return summarizeSession();
 });
 
 // ── IPC: TTS ──────────────────────────────────────────────────────────────────

@@ -20,11 +20,11 @@ const DEFAULTS = {
   },
   tts: {
     service: 'openai-tts',
+    pitch: 2.5,
     openai: {
       model: 'gpt-4o-mini-tts',
       voice: 'sage',
       speed: 1,
-      pitch: 2.5,
     },
   },
   stt: {
@@ -128,6 +128,10 @@ const MODAL_HTML = `
           <option value="openai-tts">OpenAI TTS</option>
         </select>
       </div>
+      <label for="tts-pitch-input">Pitch <span class="settings-hint">(semitones, −12 to +12, default 2.5)</span></label>
+      <div class="input-row">
+        <input type="number" id="tts-pitch-input" min="-12" max="12" step="0.5" placeholder="default: 2.5" />
+      </div>
       <details class="settings-subsection">
         <summary class="settings-subsection-title">OpenAI TTS</summary>
         <div class="settings-subsection-body">
@@ -146,10 +150,6 @@ const MODAL_HTML = `
         <label for="tts-openai-speed-input">Speed <span class="settings-hint">(0.25–4, default 1)</span></label>
         <div class="input-row">
           <input type="number" id="tts-openai-speed-input" min="0.25" max="4" step="0.05" placeholder="default: 1" />
-        </div>
-        <label for="tts-openai-pitch-input">Pitch <span class="settings-hint">(semitones, −12 to +12, default 2.5)</span></label>
-        <div class="input-row">
-          <input type="number" id="tts-openai-pitch-input" min="-12" max="12" step="0.5" placeholder="default: 2.5" />
         </div>
         </div>
       </details>
@@ -229,7 +229,7 @@ export function initSettings() {
   const ttsOpenaiModelInput    = document.getElementById('tts-openai-model-input');
   const ttsOpenaiVoiceInput    = document.getElementById('tts-openai-voice-input');
   const ttsOpenaiSpeedInput    = document.getElementById('tts-openai-speed-input');
-  const ttsOpenaiPitchInput    = document.getElementById('tts-openai-pitch-input');
+  const ttsPitchInput          = document.getElementById('tts-pitch-input');
   const browseBtn                = document.getElementById('btn-browse');
   const saveBtn        = document.getElementById('btn-settings-save');
   const cancelBtn      = document.getElementById('btn-settings-cancel');
@@ -264,7 +264,7 @@ export function initSettings() {
     ttsOpenaiModelInput.value  = ttsOpenai.model      || DEFAULTS.tts.openai.model;
     ttsOpenaiVoiceInput.value  = ttsOpenai.voice      || DEFAULTS.tts.openai.voice;
     ttsOpenaiSpeedInput.value  = ttsOpenai.speed      ?? DEFAULTS.tts.openai.speed;
-    ttsOpenaiPitchInput.value  = ttsOpenai.pitch      ?? DEFAULTS.tts.openai.pitch;
+    ttsPitchInput.value        = tts.pitch              ?? DEFAULTS.tts.pitch;
     const stt        = config.stt ?? {};
     const sttVad     = stt.vad     ?? {};
     const sttWhisper = stt.whisper ?? {};
@@ -315,12 +315,12 @@ export function initSettings() {
       },
       tts: {
         service: ttsServiceSelect.value || DEFAULTS.tts.service,
+        pitch:   ttsPitchInput.value !== '' ? Number(ttsPitchInput.value) : DEFAULTS.tts.pitch,
         openai: {
           apiKey: ttsOpenaiApiKeyInput.value.trim() || undefined,
           model:  ttsOpenaiModelInput.value.trim()  || DEFAULTS.tts.openai.model,
           voice:  ttsOpenaiVoiceInput.value.trim()  || DEFAULTS.tts.openai.voice,
           speed:  ttsOpenaiSpeedInput.value !== '' ? Number(ttsOpenaiSpeedInput.value) : DEFAULTS.tts.openai.speed,
-          pitch:  ttsOpenaiPitchInput.value !== '' ? Number(ttsOpenaiPitchInput.value) : DEFAULTS.tts.openai.pitch,
         },
       },
       stt: {

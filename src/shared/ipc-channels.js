@@ -16,15 +16,17 @@ export const CLOSE_WINDOW      = 'close-window';
 
 // ── Chat ──────────────────────────────────────────────────────────────────────
 /** renderer → main: send a user chat message (string) */
-export const CHAT_SEND         = 'chat:send';
-/** renderer → main: request session summary before closing */
-export const CHAT_SUMMARIZE    = 'chat:summarize';
+export const CHAT_BUILTIN_SEND = 'chat:builtin-send';
 
 // main → renderer (push events via webContents.send):
 export const CHAT_STREAM_START = 'chat:stream:start';
 export const CHAT_STREAM_DATA  = 'chat:stream:data';
 export const CHAT_STREAM_END   = 'chat:stream:end';
 export const CHAT_STREAM_ERROR = 'chat:stream:error';
+
+// ── LLM ───────────────────────────────────────────────────────────────────────
+/** renderer → main: request session summary before closing */
+export const LLM_SUMMARIZE     = 'llm:summarize';
 
 // ── TTS ───────────────────────────────────────────────────────────────────────
 /** renderer → main: stop current speech */

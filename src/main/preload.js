@@ -17,14 +17,16 @@ contextBridge.exposeInMainWorld('electronAPI', {
   saveMemory:       (entry) => ipcRenderer.invoke('save-memory', entry),
 
   // ── Chat ────────────────────────────────────────────────────────────────
-  chatSend:      (text) => ipcRenderer.invoke('chat:send', { text }),
-  chatSummarize: ()     => ipcRenderer.invoke('chat:summarize'),
+  chatBuiltinSend: (text) => ipcRenderer.invoke('chat:builtin-send', { text }),
 
   // Chat push events (main → renderer)
   onChatStreamStart: (fn) => ipcRenderer.on('chat:stream:start', (_e, d) => fn(d)),
   onChatStreamData:  (fn) => ipcRenderer.on('chat:stream:data',  (_e, d) => fn(d)),
   onChatStreamEnd:   (fn) => ipcRenderer.on('chat:stream:end',   (_e, d) => fn(d)),
   onChatStreamError: (fn) => ipcRenderer.on('chat:stream:error', (_e, d) => fn(d)),
+
+  // ── LLM ─────────────────────────────────────────────────────────────────
+  llmSummarize: () => ipcRenderer.invoke('llm:summarize'),
 
   // ── TTS ─────────────────────────────────────────────────────────────────
   ttsStop:   () => ipcRenderer.invoke('tts:stop'),

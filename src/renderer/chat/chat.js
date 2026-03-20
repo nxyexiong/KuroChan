@@ -28,7 +28,7 @@ export function initChat() {
 
   function send(message) {
     if (!message) return;
-    window.electronAPI.chatSend(message);
+    window.electronAPI.chatBuiltinSend(message);
   }
 
   document.getElementById('chat-send-btn').addEventListener('click', () => {

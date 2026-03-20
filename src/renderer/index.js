@@ -12,7 +12,7 @@ import { initCore } from './core.js';
 document.getElementById('btn-close').addEventListener('click', async () => {
   setStatus('💾 Saving memory…');
   try {
-    const summary = await window.electronAPI.chatSummarize();
+    const summary = await window.electronAPI.llmSummarize();
     if (summary) {
       const now = new Date();
       const pad = n => String(n).padStart(2, '0');

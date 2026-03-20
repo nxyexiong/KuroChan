@@ -57,7 +57,7 @@ class OpenClawLLMService extends LLMService {
     this._deviceIdentity = null;
   }
 
-  configure({ openclaw = {} } = {}) {
+  _configure({ openclaw = {} } = {}) {
     const newToken      = (openclaw.token      || '').trim();
     const newPassword   = (openclaw.password   || '').trim();
     const newSessionKey = (openclaw.sessionKey || 'main').trim() || 'main';

@@ -12,7 +12,7 @@ class OpenAILLMService extends LLMService {
     this._model  = 'gpt-4o';
   }
 
-  configure({ openai = {} } = {}) {
+  _configure({ openai = {} } = {}) {
     if (openai.apiKey) this._apiKey = openai.apiKey;
     if (openai.model)  this._model  = openai.model;
   }
