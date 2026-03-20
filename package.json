@@ -2,7 +2,7 @@
   "name": "kurochan",
   "version": "1.1.0",
   "description": "KuroChan — Live2D desktop mascot with transparent background using Electron + PixiJS",
-  "main": "main.js",
+  "main": "src/main/index.js",
   "scripts": {
     "build:whisper": "scripts\\build-whisper.cmd",
     "build:js": "webpack --config webpack.config.js",
@@ -21,9 +21,11 @@
     "webpack-cli": "^5.1.4"
   },
   "dependencies": {
+    "ffmpeg-static": "^5.3.0",
     "koffi": "^2.9.0",
     "pixi-live2d-display": "^0.4.0",
-    "pixi.js": "^6.5.10"
+    "pixi.js": "^6.5.10",
+    "ws": "^8.19.0"
   },
   "build": {
     "appId": "com.kurochan.app",
@@ -39,17 +41,19 @@
       "buildResources": "build-resources"
     },
     "files": [
-      "main.js",
-      "preload.js",
+      "src/main/**",
       "index.html",
       "dist/**",
       "assets/**",
-      "libs/**",
+      "third_party/live2d/**",
       "resources/**",
       "package.json",
       "!resources/whisper/README.md",
-      "!third_party/**",
-      "!src/**",
+      "!third_party/whisper.cpp/**",
+      "!third_party/openclaw/**",
+      "!third_party/build/**",
+      "!third_party/CMakeLists.txt",
+      "!third_party/whisper_wrapper.cpp",
       "!scripts/**",
       "!webpack.config.js",
       "!*.ps1",

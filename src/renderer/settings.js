@@ -1,5 +1,5 @@
 /**
- * settings.js — injects the settings modal into the DOM and handles its logic
+ * settings.js — injects the settings modal into the DOM and handles its logic (renderer)
  */
 
 const DEFAULTS = {
@@ -211,7 +211,6 @@ const MODAL_HTML = `
 `;
 
 export function initSettings() {
-  // Inject modal markup
   document.body.insertAdjacentHTML('beforeend', MODAL_HTML);
 
   const modal                    = document.getElementById('settings-modal');

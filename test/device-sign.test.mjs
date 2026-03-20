@@ -60,7 +60,7 @@ import {
   signDevicePayload,
   buildConnectPayload,
   b64uDecode,
-} from '../src/llm/openclaw-device-identity.js';
+} from '../src/main/llm/openclaw-device-identity.js';
 
 // ── Server-side verifier (mirrors gateway's verifyDeviceSignature) ─────────────
 

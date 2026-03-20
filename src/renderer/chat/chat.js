@@ -1,11 +1,9 @@
 /**
- * chat.js — Chat UI.
+ * chat.js — Chat UI (renderer).
  *
- * Sends messages to the LLM and displays whatever the LLM streams back.
- * Has no knowledge of STT or TTS.
+ * Sends messages via IPC, displays streamed replies from main.
+ * No knowledge of LLM, TTS, or STT.
  */
-
-import { input, outputStream } from '../llm/llm.js';
 
 const CHAT_HTML = `
 <div id="chat-panel">
@@ -23,13 +21,14 @@ export function initChat() {
   const outputText = document.getElementById('chat-output-text');
   const textarea   = document.getElementById('chat-textarea');
 
-  outputStream.on('start', ()      => { outputText.textContent = ''; });
-  outputStream.on('data',  (chunk) => { outputText.textContent += chunk; });
-  outputStream.on('error', (err)   => { outputText.textContent = `⚠ ${err.message}`; });
+  // Listen for streamed reply from main
+  window.electronAPI.onChatStreamStart(() => { outputText.textContent = ''; });
+  window.electronAPI.onChatStreamData(({ chunk }) => { outputText.textContent += chunk; });
+  window.electronAPI.onChatStreamError(({ message }) => { outputText.textContent = `⚠ ${message}`; });
 
   function send(message) {
     if (!message) return;
-    input(message);
+    window.electronAPI.chatSend(message);
   }
 
   document.getElementById('chat-send-btn').addEventListener('click', () => {
@@ -55,6 +54,4 @@ export function initChat() {
     textarea.style.height = 'auto';
     textarea.style.height = textarea.scrollHeight + 'px';
   });
-
 }
-

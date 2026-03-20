@@ -1,5 +1,5 @@
 /**
- * ui.js — status bar and toolbar button helpers
+ * ui.js — status bar and toolbar button helpers (renderer)
  */
 
 const statusEl = document.getElementById('status');

@@ -1,19 +1,18 @@
 /**
- * renderer.js — entry point
- * Wires up UI event handlers, then delegates app bootstrap to core.js.
+ * index.js — Renderer entry point.
+ * Wires up UI event handlers, then delegates bootstrap to core.js.
  */
 
 import './styles/main.css';
 import { setStatus } from './ui.js';
 import { initSettings } from './settings.js';
 import { initCore } from './core.js';
-import { summarizeSession } from './llm/llm.js';
 
-// ── Close button ───────────────────────────────────────────────────────────────────
+// ── Close button ──────────────────────────────────────────────────────────────
 document.getElementById('btn-close').addEventListener('click', async () => {
   setStatus('💾 Saving memory…');
   try {
-    const summary = await summarizeSession();
+    const summary = await window.electronAPI.chatSummarize();
     if (summary) {
       const now = new Date();
       const pad = n => String(n).padStart(2, '0');
@@ -35,4 +34,3 @@ if (!window.Live2DCubismCore) {
 
 // ── Bootstrap ─────────────────────────────────────────────────────────────────
 initCore();
-

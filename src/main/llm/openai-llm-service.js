@@ -1,12 +1,11 @@
 /**
- * openai-llm-service.js — OpenAI Chat Completions implementation of LLMService.
- * Uses the streaming SSE endpoint via fetch (no Node.js required).
+ * openai-llm-service.js — OpenAI Chat Completions (streaming SSE) via Node fetch.
  */
-import { LLMService } from './llm-service.js';
+const { LLMService } = require('./llm-service.js');
 
 const OPENAI_ENDPOINT = 'https://api.openai.com/v1/chat/completions';
 
-export class OpenAILLMService extends LLMService {
+class OpenAILLMService extends LLMService {
   constructor() {
     super();
     this._apiKey = '';
@@ -14,9 +13,8 @@ export class OpenAILLMService extends LLMService {
   }
 
   configure({ openai = {} } = {}) {
-    const { apiKey, model } = openai;
-    if (apiKey) this._apiKey = apiKey;
-    if (model)  this._model  = model;
+    if (openai.apiKey) this._apiKey = openai.apiKey;
+    if (openai.model)  this._model  = openai.model;
   }
 
   stream(messages, onChunk, onDone, onError) {
@@ -31,11 +29,7 @@ export class OpenAILLMService extends LLMService {
         'Content-Type':  'application/json',
         'Authorization': `Bearer ${this._apiKey}`,
       },
-      body: JSON.stringify({
-        model:    this._model,
-        messages,
-        stream:   true,
-      }),
+      body: JSON.stringify({ model: this._model, messages, stream: true }),
     })
       .then(async (response) => {
         if (!response.ok) {
@@ -53,35 +47,26 @@ export class OpenAILLMService extends LLMService {
           while (true) {
             const { done, value } = await reader.read();
             if (done) break;
-
             buffer += decoder.decode(value, { stream: true });
             const lines = buffer.split('\n');
-            buffer = lines.pop(); // hold back any incomplete trailing line
-
+            buffer = lines.pop();
             for (const line of lines) {
               const trimmed = line.trim();
               if (!trimmed.startsWith('data: ')) continue;
-
               const data = trimmed.slice(6);
-              if (data === '[DONE]') {
-                onDone();
-                return;
-              }
-
+              if (data === '[DONE]') { onDone(); return; }
               try {
-                const parsed = JSON.parse(data);
-                const chunk  = parsed.choices?.[0]?.delta?.content;
+                const chunk = JSON.parse(data).choices?.[0]?.delta?.content;
                 if (chunk) onChunk(chunk);
-              } catch {
-                // skip malformed SSE frames
-              }
+              } catch { /* skip */ }
             }
           }
           onDone();
         };
-
         pump().catch(onError);
       })
       .catch(onError);
   }
 }
+
+module.exports = { OpenAILLMService };

@@ -1,5 +1,8 @@
 /**
- * model.js — PixiJS app creation and Live2D model loading / dragging
+ * model.js — PixiJS app creation and Live2D model loading / dragging (renderer).
+ *
+ * Pure visual: renders the Live2D model, handles zoom/drag, and applies
+ * parameter changes received from the main process via IPC.
  */
 
 import * as PIXI from 'pixi.js';
@@ -21,22 +24,25 @@ document.body.appendChild(app.view);
 /** Currently loaded Live2D model instance, or null. */
 let _currentModel = null;
 
-/** Desired mouth open value set externally; applied inside coreModel.update(). */
+/** Desired mouth open value, driven by model:set-parameter IPC from main. */
 let _lipSyncValue = 0;
 
-/**
- * Set the desired mouth-open value. Takes effect on the very next rendered frame.
- * @param {number} value  0 (closed) to 1 (fully open)
- */
-export function setMouthOpen(value) {
-  _lipSyncValue = Math.max(0, Math.min(1, value));
-}
+// ── Listen for parameter updates from main ────────────────────────────────────
+window.electronAPI.onModelSetParam(({ id, value, weight }) => {
+  if (!_currentModel) return;
+  // Lip sync parameter is stored for per-frame application (smooth animation)
+  if (id === 'ParamMouthOpenY') {
+    _lipSyncValue = Math.max(0, Math.min(1, value));
+    return;
+  }
+  try {
+    _currentModel.internalModel.coreModel.setParameterValueById(id, value, weight);
+  } catch { /* parameter may not exist on every model */ }
+});
 
 // ── Load and display a model ──────────────────────────────────────────────────
 export async function loadModel(modelPath, modelScale = 100) {
-  // Destroy any previously loaded model
   app.stage.removeChildren();
-
   setStatus('Loading model…');
 
   let model;
@@ -52,7 +58,7 @@ export async function loadModel(modelPath, modelScale = 100) {
   _currentModel = model;
 
   // Wrap coreModel.update so our lip sync value is injected just before
-  // Live2D bakes parameters into drawable outputs — the only reliable hook.
+  // Live2D bakes parameters into drawable outputs.
   const coreModel = model.internalModel.coreModel;
   const _origCoreUpdate = coreModel.update.bind(coreModel);
   coreModel.update = () => {
@@ -120,7 +126,6 @@ function _enableDrag(model) {
 function _enableWheel(model) {
   app.view.addEventListener('wheel', (e) => {
     e.preventDefault();
-    // Scale by ±5% per notch; clamp to a sensible range.
     const factor = e.deltaY < 0 ? 1.05 : 1 / 1.05;
     const next   = Math.max(0.05, Math.min(20, model.scale.x * factor));
     model.scale.set(next);
