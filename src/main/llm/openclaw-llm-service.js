@@ -112,7 +112,8 @@ class OpenClawLLMService extends LLMService {
       return;
     }
 
-    const ws = new WebSocket(this._url);
+    const origin = `http${parsedUrl.protocol === 'wss:' ? 's' : ''}://${parsedUrl.host}`;
+    const ws = new WebSocket(this._url, { origin });
     this._ws = ws;
 
     ws.on('message', (raw) => this._handleMessage(typeof raw === 'string' ? raw : raw.toString()));

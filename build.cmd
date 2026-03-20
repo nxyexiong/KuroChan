@@ -25,7 +25,16 @@ echo    KuroChan  --  Release Build
 echo ======================================
 echo.
 
-:: ── 1. Verify Node / npm ─────────────────────────────────────────────────────
+:: ── 1. Clean release folder ───────────────────────────────────────────────────
+echo   ^>^> Cleaning release folder...
+if exist "%ROOT%\release" (
+    rd /s /q "%ROOT%\release"
+    echo      release\ removed.
+) else (
+    echo      release\ not found -- nothing to clean.
+)
+
+:: ── 2. Verify Node / npm ─────────────────────────────────────────────────────
 echo   ^>^> Checking prerequisites...
 
 where node >nul 2>&1
@@ -44,7 +53,7 @@ for /f "tokens=*" %%v in ('node --version') do set "NODE_VER=%%v"
 for /f "tokens=*" %%v in ('npm --version')  do set "NPM_VER=%%v"
 echo      Node.js %NODE_VER%  /  npm %NPM_VER%
 
-:: ── 2. Whisper DLL ───────────────────────────────────────────────────────────
+:: ── 3. Whisper DLL ───────────────────────────────────────────────────────────
 if "%SKIP_WHISPER%"=="1" (
     echo.
     echo   ^>^> Whisper DLL build -- SKIPPED ^(/skipwhisper flag set^).
@@ -59,7 +68,7 @@ if "%SKIP_WHISPER%"=="1" (
     echo      whisper_kuro.dll built successfully.
 )
 
-:: ── 3. npm install ───────────────────────────────────────────────────────────
+:: ── 4. npm install ───────────────────────────────────────────────────────────
 echo.
 echo   ^>^> Installing Node dependencies...
 
@@ -94,7 +103,7 @@ if not exist "%ROOT%\node_modules\.bin\electron-builder.cmd" (
     popd
 )
 
-:: ── 4. Webpack production bundle ─────────────────────────────────────────────
+:: ── 5. Webpack production bundle ─────────────────────────────────────────────
 echo.
 echo   ^>^> Building renderer bundle ^(webpack -- production mode^)...
 
@@ -108,7 +117,7 @@ if errorlevel 1 (
 popd
 echo      dist\bundle.js written.
 
-:: ── 5. electron-builder ──────────────────────────────────────────────────────
+:: ── 6. electron-builder ──────────────────────────────────────────────────────
 echo.
 echo   ^>^> Packaging with electron-builder ^(NSIS + portable^)...
 
