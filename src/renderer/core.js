@@ -16,10 +16,11 @@ export async function initCore() {
 
   // ── Model ─────────────────────────────────────────────────────────────────
   const modelConfig = config.model ?? {};
-  if (!modelConfig.modelPath) {
+  const modelPath = await window.electronAPI.resolveModelDir(modelConfig.modelDir);
+  if (!modelPath) {
     setStatus('⚙ No model found — click ⚙ to choose a model folder');
   } else {
-    await loadModel(modelConfig.modelPath, modelConfig.modelScale);
+    await loadModel(modelPath, modelConfig.modelScale);
   }
 
   // ── Chat UI ───────────────────────────────────────────────────────────────

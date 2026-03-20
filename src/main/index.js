@@ -4,7 +4,7 @@
  * Registers all IPC handlers, initialises services, creates the window.
  * All business logic lives in the service modules; this file wires them together.
  */
-const { app, BrowserWindow, ipcMain, dialog, session, screen } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog, session, screen, net, protocol } = require('electron');
 const path = require('path');
 const fs   = require('fs');
 const os   = require('os');
@@ -125,8 +125,6 @@ function getAppRoot() {
   return path.join(__dirname, '..', '..');
 }
 
-const DEFAULT_MODEL_DIR = 'assets/models/Haru';
-
 // ── Window creation ───────────────────────────────────────────────────────────
 let mainWindow;
 
@@ -220,6 +218,9 @@ function createWindow() {
 }
 
 app.whenReady().then(() => {
+  // Allow the renderer to fetch file:// URLs (for Live2D model assets).
+  protocol.handle('file', (req) => net.fetch(req.url, { bypassCustomProtocolHandlers: true }));
+
   createWindow();
 
   // Grant microphone access
@@ -249,26 +250,7 @@ ipcMain.on('close-window', (event) => {
 });
 
 ipcMain.handle('get-config', () => {
-  const config = readConfig();
-  const model = config.model ?? {};
-  const modelDir = model.modelDir || DEFAULT_MODEL_DIR;
-  model.modelPath = null;
-  if (modelDir) {
-    try {
-      const appRoot = getAppRoot();
-      const dir = path.isAbsolute(modelDir) ? modelDir : path.join(appRoot, modelDir);
-      const f = fs.readdirSync(dir).find(n => n.endsWith('.model3.json'));
-      if (f) {
-        const abs = path.join(dir, f);
-        const rel = path.relative(appRoot, abs);
-        model.modelPath = rel.startsWith('..')
-          ? 'file:///' + abs.replace(/\\/g, '/')
-          : rel.replace(/\\/g, '/');
-      }
-    } catch { /* dir unreadable */ }
-  }
-  config.model = model;
-  return config;
+  return readConfig();
 });
 
 ipcMain.handle('save-config', (event, data) => {
@@ -279,6 +261,20 @@ ipcMain.handle('save-config', (event, data) => {
   const win = BrowserWindow.fromWebContents(event.sender);
   if (win) initServices(win);
   win?.reload();
+});
+
+ipcMain.handle('resolve-model-dir', (_event, modelDir) => {
+  if (!modelDir) return null;
+  try {
+    const appRoot = getAppRoot();
+    const dir = path.isAbsolute(modelDir) ? modelDir : path.join(appRoot, modelDir);
+    const f = fs.readdirSync(dir).find(n => n.endsWith('.model3.json'));
+    if (f) {
+      const abs = path.join(dir, f);
+      return 'file:///' + abs.replace(/\\/g, '/');
+    }
+  } catch { /* dir unreadable */ }
+  return null;
 });
 
 ipcMain.handle('open-folder-dialog', async (event) => {

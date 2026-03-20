@@ -4,7 +4,7 @@
 
 const DEFAULTS = {
   model: {
-    modelDir: 'assets/models/Haru',
+    modelDir: 'resources/models/Haru',
     modelScale: 100,
   },
   llm: {
@@ -52,7 +52,7 @@ const MODAL_HTML = `
       <div class="settings-section-body">
       <label for="model-dir-input">Model folder</label>
       <div class="input-row">
-        <input type="text" id="model-dir-input" placeholder="default: assets/models/Haru" />
+        <input type="text" id="model-dir-input" placeholder="default: resources/models/Haru" />
         <button class="btn-modal" id="btn-browse">Browse…</button>
       </div>
       <label for="model-scale-input">Size <span class="settings-hint">(% of screen fit, default: 100)</span></label>

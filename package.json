@@ -14,8 +14,8 @@
   },
   "devDependencies": {
     "css-loader": "^7.1.4",
-    "electron": "^28.3.0",
-    "electron-builder": "^24.13.3",
+    "electron": "^41.0.3",
+    "electron-builder": "^26.8.1",
     "style-loader": "^4.0.0",
     "webpack": "^5.90.0",
     "webpack-cli": "^5.1.4"
@@ -35,7 +35,13 @@
     "asarUnpack": [
       "resources/whisper/**"
     ],
-    "extraResources": [],
+    "extraResources": [
+      {
+        "from": "resources/models/",
+        "to": "models/",
+        "filter": ["**/*"]
+      }
+    ],
     "directories": {
       "output": "release",
       "buildResources": "build-resources"
@@ -44,9 +50,9 @@
       "src/main/**",
       "index.html",
       "dist/**",
-      "assets/**",
       "third_party/live2d/**",
       "resources/**",
+      "!resources/models/**",
       "package.json",
       "!resources/whisper/README.md",
       "!third_party/whisper.cpp/**",
@@ -57,6 +63,7 @@
       "!scripts/**",
       "!webpack.config.js",
       "!*.ps1",
+      "!*.cmd",
       "!*.md"
     ],
     "win": {
