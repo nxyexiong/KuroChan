@@ -13,6 +13,9 @@ const DEFAULTS = {
     openai: {
       model: 'gpt-4.1-nano',
     },
+    xai: {
+      model: 'grok-4-1-fast-non-reasoning',
+    },
     openclaw: {
       url:        'ws://127.0.0.1:18789',
       sessionKey: 'main',
@@ -25,6 +28,10 @@ const DEFAULTS = {
       model: 'gpt-4o-mini-tts',
       voice: 'sage',
       speed: 1,
+    },
+    xai: {
+      voice:    'ara',
+      language: 'auto',
     },
   },
   stt: {
@@ -70,6 +77,7 @@ const MODAL_HTML = `
         <select id="llm-service-select">
           <option value="">— none —</option>
           <option value="openai">OpenAI</option>
+          <option value="xai">xAI</option>
           <option value="openclaw">OpenClaw</option>
         </select>
       </div>
@@ -91,6 +99,19 @@ const MODAL_HTML = `
         <label for="llm-openai-model-input">Model name</label>
         <div class="input-row">
           <input type="text" id="llm-openai-model-input" placeholder="default: gpt-4.1-nano" />
+        </div>
+        </div>
+      </details>
+      <details class="settings-subsection">
+        <summary class="settings-subsection-title">xAI</summary>
+        <div class="settings-subsection-body">
+        <label for="llm-xai-api-key-input">API key</label>
+        <div class="input-row">
+          <input type="password" id="llm-xai-api-key-input" placeholder="xai-…" autocomplete="off" />
+        </div>
+        <label for="llm-xai-model-input">Model name</label>
+        <div class="input-row">
+          <input type="text" id="llm-xai-model-input" placeholder="default: grok-4-1-fast-non-reasoning" />
         </div>
         </div>
       </details>
@@ -126,6 +147,7 @@ const MODAL_HTML = `
         <select id="tts-service-select">
           <option value="">— none —</option>
           <option value="openai-tts">OpenAI TTS</option>
+          <option value="xai-tts">xAI TTS</option>
         </select>
       </div>
       <label for="tts-pitch-input">Pitch <span class="settings-hint">(semitones, −12 to +12, default 2.5)</span></label>
@@ -150,6 +172,23 @@ const MODAL_HTML = `
         <label for="tts-openai-speed-input">Speed <span class="settings-hint">(0.25–4, default 1)</span></label>
         <div class="input-row">
           <input type="number" id="tts-openai-speed-input" min="0.25" max="4" step="0.05" placeholder="default: 1" />
+        </div>
+        </div>
+      </details>
+      <details class="settings-subsection">
+        <summary class="settings-subsection-title">xAI TTS</summary>
+        <div class="settings-subsection-body">
+        <label for="tts-xai-api-key-input">API key</label>
+        <div class="input-row">
+          <input type="password" id="tts-xai-api-key-input" placeholder="xai-…" autocomplete="off" />
+        </div>
+        <label for="tts-xai-voice-input">Voice <span class="settings-hint">(eve, ara, rex, sal, leo)</span></label>
+        <div class="input-row">
+          <input type="text" id="tts-xai-voice-input" placeholder="default: ara" />
+        </div>
+        <label for="tts-xai-language-input">Language <span class="settings-hint">(BCP-47 code or auto)</span></label>
+        <div class="input-row">
+          <input type="text" id="tts-xai-language-input" placeholder="default: auto" />
         </div>
         </div>
       </details>
@@ -220,6 +259,8 @@ export function initSettings() {
   const llmCharacterInput      = document.getElementById('llm-character-input');
   const llmOpenaiApiKeyInput   = document.getElementById('llm-openai-api-key-input');
   const llmOpenaiModelInput    = document.getElementById('llm-openai-model-input');
+  const llmXaiApiKeyInput     = document.getElementById('llm-xai-api-key-input');
+  const llmXaiModelInput      = document.getElementById('llm-xai-model-input');
   const llmOpenclawUrlInput    = document.getElementById('llm-openclaw-url-input');
   const llmOpenclawTokenInput  = document.getElementById('llm-openclaw-token-input');
   const llmOpenclawPasswordInput = document.getElementById('llm-openclaw-password-input');
@@ -229,6 +270,9 @@ export function initSettings() {
   const ttsOpenaiModelInput    = document.getElementById('tts-openai-model-input');
   const ttsOpenaiVoiceInput    = document.getElementById('tts-openai-voice-input');
   const ttsOpenaiSpeedInput    = document.getElementById('tts-openai-speed-input');
+  const ttsXaiApiKeyInput      = document.getElementById('tts-xai-api-key-input');
+  const ttsXaiVoiceInput       = document.getElementById('tts-xai-voice-input');
+  const ttsXaiLanguageInput    = document.getElementById('tts-xai-language-input');
   const ttsPitchInput          = document.getElementById('tts-pitch-input');
   const browseBtn                = document.getElementById('btn-browse');
   const saveBtn        = document.getElementById('btn-settings-save');
@@ -252,6 +296,9 @@ export function initSettings() {
     llmCharacterInput.value    = llm.character        || DEFAULTS.llm.character;
     llmOpenaiApiKeyInput.value = llmOpenai.apiKey    || '';
     llmOpenaiModelInput.value  = llmOpenai.model     || DEFAULTS.llm.openai.model;
+    const llmXai = llm.xai ?? {};
+    llmXaiApiKeyInput.value    = llmXai.apiKey       || '';
+    llmXaiModelInput.value     = llmXai.model        || DEFAULTS.llm.xai.model;
     const llmOpenclaw = llm.openclaw ?? {};
     llmOpenclawUrlInput.value      = llmOpenclaw.url        || '';
     llmOpenclawTokenInput.value    = llmOpenclaw.token      || '';
@@ -265,6 +312,10 @@ export function initSettings() {
     ttsOpenaiVoiceInput.value  = ttsOpenai.voice      || DEFAULTS.tts.openai.voice;
     ttsOpenaiSpeedInput.value  = ttsOpenai.speed      ?? DEFAULTS.tts.openai.speed;
     ttsPitchInput.value        = tts.pitch              ?? DEFAULTS.tts.pitch;
+    const ttsXai = tts.xai ?? {};
+    ttsXaiApiKeyInput.value    = ttsXai.apiKey           || '';
+    ttsXaiVoiceInput.value     = ttsXai.voice            || DEFAULTS.tts.xai.voice;
+    ttsXaiLanguageInput.value  = ttsXai.language          || DEFAULTS.tts.xai.language;
     const stt        = config.stt ?? {};
     const sttVad     = stt.vad     ?? {};
     const sttWhisper = stt.whisper ?? {};
@@ -306,6 +357,10 @@ export function initSettings() {
           apiKey: llmOpenaiApiKeyInput.value.trim() || undefined,
           model:  llmOpenaiModelInput.value.trim()  || DEFAULTS.llm.openai.model,
         },
+        xai: {
+          apiKey: llmXaiApiKeyInput.value.trim() || undefined,
+          model:  llmXaiModelInput.value.trim()  || DEFAULTS.llm.xai.model,
+        },
         openclaw: {
           url:        llmOpenclawUrlInput.value.trim()      || undefined,
           token:      llmOpenclawTokenInput.value.trim()    || undefined,
@@ -321,6 +376,11 @@ export function initSettings() {
           model:  ttsOpenaiModelInput.value.trim()  || DEFAULTS.tts.openai.model,
           voice:  ttsOpenaiVoiceInput.value.trim()  || DEFAULTS.tts.openai.voice,
           speed:  ttsOpenaiSpeedInput.value !== '' ? Number(ttsOpenaiSpeedInput.value) : DEFAULTS.tts.openai.speed,
+        },
+        xai: {
+          apiKey:   ttsXaiApiKeyInput.value.trim()    || undefined,
+          voice:    ttsXaiVoiceInput.value.trim()     || DEFAULTS.tts.xai.voice,
+          language: ttsXaiLanguageInput.value.trim()  || DEFAULTS.tts.xai.language,
         },
       },
       stt: {

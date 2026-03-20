@@ -7,10 +7,12 @@
  */
 const { OpenAILLMService }   = require('./openai-llm-service.js');
 const { OpenClawLLMService } = require('./openclaw-llm-service.js');
+const { XAILLMService }      = require('./xai-llm-service.js');
 
 const SERVICES = {
   'openai':   OpenAILLMService,
   'openclaw': OpenClawLLMService,
+  'xai':      XAILLMService,
 };
 const DEFAULT_SERVICE = 'openai';
 

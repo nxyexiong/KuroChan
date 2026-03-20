@@ -12,6 +12,7 @@ class TTSService {
     /** @type {import('electron').BrowserWindow | null} */
     this._win           = null;
     this._pitch         = 0;
+    this._audioFormat   = 'aac';
     this._currentStream = null;
   }
 
@@ -44,7 +45,7 @@ class TTSService {
       const stream = this.streamAudio(text);
       this._currentStream = stream;
 
-      this._send('tts:start', { pitch: this._pitch });
+      this._send('tts:start', { pitch: this._pitch, format: this._audioFormat });
 
       stream.on('data', (chunk) => {
         this._send('tts:chunk', { data: new Uint8Array(chunk) });

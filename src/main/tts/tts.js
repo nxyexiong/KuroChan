@@ -5,8 +5,12 @@
  * All shared logic (stream lifecycle, IPC, lip sync) lives in TTSService.
  */
 const { OpenAITTSService } = require('./openai-tts-service.js');
+const { XAITTSService }    = require('./xai-tts-service.js');
 
-const SERVICES = { 'openai-tts': OpenAITTSService };
+const SERVICES = {
+  'openai-tts': OpenAITTSService,
+  'xai-tts':    XAITTSService,
+};
 const DEFAULT_SERVICE = 'openai-tts';
 
 let service = new OpenAITTSService();

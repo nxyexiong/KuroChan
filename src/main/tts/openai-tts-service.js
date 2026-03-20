@@ -15,6 +15,7 @@ class OpenAITTSService extends TTSService {
     this._model  = 'tts-1';
     this._voice  = 'alloy';
     this._speed  = 1.0;
+    this._audioFormat  = 'aac';
     this._controller = null;
   }
 
