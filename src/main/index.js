@@ -4,7 +4,7 @@
  * Registers all IPC handlers, initialises services, creates the window.
  * All business logic lives in the service modules; this file wires them together.
  */
-const { app, BrowserWindow, ipcMain, dialog, session, screen, net, protocol } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog, session, screen, net, protocol, globalShortcut } = require('electron');
 const path = require('path');
 const fs   = require('fs');
 const os   = require('os');
@@ -222,6 +222,12 @@ app.whenReady().then(() => {
   protocol.handle('file', (req) => net.fetch(req.url, { bypassCustomProtocolHandlers: true }));
 
   createWindow();
+
+  // Global hotkey: Ctrl+M to toggle mic
+  globalShortcut.register('CommandOrControl+M', () => {
+    const win = BrowserWindow.getAllWindows()[0];
+    if (win && !win.isDestroyed()) win.webContents.send('hotkey:toggle-mic');
+  });
 
   // Grant microphone access
   session.defaultSession.setPermissionRequestHandler((_webContents, permission, callback) => {

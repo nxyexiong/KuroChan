@@ -50,6 +50,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
   onSTTVadState: (fn) => ipcRenderer.on('stt:vad-state', (_e, d) => fn(d)),
   onSTTError:    (fn) => ipcRenderer.on('stt:error',     (_e, d) => fn(d)),
 
+  // ── Hotkeys (main → renderer) ───────────────────────────────────────────
+  onToggleMic: (fn) => ipcRenderer.on('hotkey:toggle-mic', () => fn()),
+
   // ── Model push events (main → renderer) ─────────────────────────────────
   onModelSetParam:  (fn) => ipcRenderer.on('model:set-parameter', (_e, d) => fn(d)),
   onModelStatus:    (fn) => ipcRenderer.on('model:status',        (_e, d) => fn(d)),

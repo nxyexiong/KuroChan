@@ -7,8 +7,8 @@ A transparent, frameless desktop mascot built with **Electron**, **PixiJS v6**, 
 ## Features
 
 - Transparent, always-on-top frameless window with a draggable, zoomable Live2D model
-- LLM chat with configurable provider, model, and system prompt (character personality)
-- Text-to-speech with lip-sync driven from audio amplitude and adjustable pitch
+- LLM chat with multiple providers (OpenAI, xAI/Grok, OpenClaw) and configurable system prompt (character personality)
+- Text-to-speech with multiple providers (OpenAI TTS, xAI TTS) and lip-sync driven from audio amplitude with adjustable pitch
 - Local speech-to-text via [whisper.cpp](https://github.com/ggerganov/whisper.cpp) (no cloud API required)
 - Voice-activity detection (VAD) with configurable threshold and silence duration
 - Persistent conversation memory across sessions
@@ -53,10 +53,10 @@ npm install
 
 ### 4. Add a Live2D model
 
-Place your model folder inside `assets/models/`. The folder must contain a `.model3.json` file (Cubism 4).
+Place your model folder inside `resources/models/`. The folder must contain a `.model3.json` file (Cubism 4).
 
 ```
-assets/
+resources/
   models/
     Haru/
       Haru.model3.json
@@ -64,7 +64,7 @@ assets/
       ...
 ```
 
-Free sample models are available in the Cubism SDK under `Samples/Resources/`.
+The default model path is `resources/models/Haru`. Free sample models are available in the Cubism SDK under `Samples/Resources/`.
 
 ### 5. Build the Whisper native DLL (optional — for local STT)
 
@@ -89,10 +89,10 @@ npm run dev      # launch Electron without rebuilding (fast iteration)
 
 Click the **⚙** gear icon inside the app to open the Settings panel. From there you can set:
 
-- **Model** — path to the Live2D model folder and display scale
-- **LLM** — provider URL, API key, model name, and system prompt (character)
-- **TTS** — provider URL, API key, voice, speed, and pitch adjustment
-- **STT** — Whisper model file path, CPU threads, language, and VAD parameters
+- **Model** — path to the Live2D model folder
+- **LLM** — service selector (OpenAI / xAI / OpenClaw), character system prompt, and per-provider config (API key, model)
+- **TTS** — service selector (OpenAI TTS / xAI TTS), pitch adjustment (−12 to +12 semitones), and per-provider config (API key, model, voice, speed, language)
+- **STT** — Whisper model file path, CPU threads, language, and VAD parameters (voice threshold, silence duration)
 
 Settings are saved to disk and take effect after clicking **Save & Reload**.
 
@@ -153,17 +153,19 @@ KuroChan/
 │   │   │   ├── chat-service.js       Base class — shared chat pipeline (validate, stop TTS, send to LLM)
 │   │   │   └── builtin-chat-service.js  Specialization — renderer chat box entry point
 │   │   │
-│   │   ├── llm/                      LLM module (facade → base → openai / openclaw)
+│   │   ├── llm/                      LLM module (facade → base → openai / xai / openclaw)
 │   │   │   ├── llm.js                Facade — selects service, manages the single output stream
 │   │   │   ├── llm-service.js        Base class — history, memory, message composition, summarization
 │   │   │   ├── openai-llm-service.js     Specialization — OpenAI Chat Completions (streaming SSE)
+│   │   │   ├── xai-llm-service.js        Specialization — xAI / Grok Chat Completions
 │   │   │   ├── openclaw-llm-service.js   Specialization — OpenClaw WebSocket gateway
 │   │   │   └── openclaw-device-identity.js  Ed25519 device identity (Node crypto)
 │   │   │
-│   │   ├── tts/                      TTS module (facade → base → openai)
+│   │   ├── tts/                      TTS module (facade → base → openai / xai)
 │   │   │   ├── tts.js                Facade — selects service, delegates speak / stop / volume
 │   │   │   ├── tts-service.js        Base class — window, IPC _send, stream lifecycle, pitch, lip sync
-│   │   │   └── openai-tts-service.js Specialization — OpenAI TTS (streaming AAC)
+│   │   │   ├── openai-tts-service.js Specialization — OpenAI TTS (streaming AAC)
+│   │   │   └── xai-tts-service.js    Specialization — xAI TTS
 │   │   │
 │   │   ├── stt/                      STT module (facade → base → whisper)
 │   │   │   ├── stt.js                Facade — selects service, delegates start / stop / audio
@@ -176,9 +178,8 @@ KuroChan/
 │   │       └── builtin-model-service.js  Specialization — Electron IPC model control
 │   │
 │   ├── renderer/                     ── Renderer process (ES modules, webpack bundled) ──
-│   │   ├── index.js                  Entry point — close button, settings, bootstrap
-│   │   ├── core.js                   Loads config, initialises UI modules
-│   │   ├── ui.js                     Status bar helpers
+│   │   ├── index.js                  Entry point — config, settings, bootstrap, UI wiring
+│   │   ├── status.js                 Status bar helpers
 │   │   ├── settings.js               Settings modal (pure DOM)
 │   │   ├── chat/
 │   │   │   └── chat.js               Chat UI — textarea + streamed output display
@@ -196,8 +197,9 @@ KuroChan/
 │
 ├── scripts/
 │   └── build-whisper.cmd             Builds whisper_kuro.dll via CMake
-├── assets/
-│   └── models/                       ← add Live2D model folders here
+├── resources/
+│   ├── models/                       ← add Live2D model folders here
+│   └── whisper/                      ← Whisper DLL and model files
 ├── resources/
 │   └── whisper/
 │       └── whisper_kuro.dll          ← generated by build-whisper.cmd

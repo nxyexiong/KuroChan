@@ -6,7 +6,7 @@
  * logic here.
  */
 
-import { setStatus, hideStatusAfter } from '../ui.js';
+import { setStatus } from '../status.js';
 
 let _sttOn = false;
 let _stream = null;
@@ -79,8 +79,7 @@ export async function initSTTButton() {
       try {
         await _startMicCapture();
       } catch (err) {
-        setStatus(`⚠ STT: ${err.message}`);
-        hideStatusAfter(6000);
+        setStatus(`⚠ STT: ${err.message}`, 6000);
         _sttOn = false;
         btn.classList.remove('active', 'speech');
         btn.title = 'Voice input (off)';
@@ -104,8 +103,7 @@ export async function initSTTButton() {
 
   // STT errors from main
   window.electronAPI.onSTTError(({ message }) => {
-    setStatus(`⚠ STT: ${message}`);
-    hideStatusAfter(6000);
+    setStatus(`⚠ STT: ${message}`, 6000);
     if (_sttOn) {
       _sttOn = false;
       btn.classList.remove('active', 'speech');

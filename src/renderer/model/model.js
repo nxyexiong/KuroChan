@@ -7,7 +7,7 @@
 
 import * as PIXI from 'pixi.js';
 import { Live2DModel } from 'pixi-live2d-display/cubism4';
-import { setStatus, hideStatusAfter } from '../ui.js';
+import { setStatus } from '../status.js';
 
 Live2DModel.registerTicker(PIXI.Ticker);
 
@@ -94,8 +94,7 @@ export async function loadModel(modelPath, modelScale = 100) {
   _enableDrag(model);
   _enableWheel(model);
 
-  setStatus('✓ Model loaded');
-  hideStatusAfter(3000);
+  setStatus('✓ Model loaded', 3000);
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────

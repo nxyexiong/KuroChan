@@ -55,9 +55,28 @@ class STTService {
 
   stopListening() {
     this._listening = false;
-    this._recordingChunks = [];
-    this._silenceStart = null;
-    this._vadState = 'idle';
+    if (this._vadState === 'speech' && this._recordingChunks.length > 0) {
+      const chunks = this._recordingChunks;
+      this._recordingChunks = [];
+      this._silenceStart = null;
+      this._setVadState('processing');
+      this._transcribeChunks(chunks).then(
+        (text) => {
+          this._setVadState('idle');
+          if (text && this._onTranscript) this._onTranscript(text);
+        },
+        (err) => {
+          this._setVadState('idle');
+          this._send('stt:error', { message: err.message });
+        },
+      );
+    } else {
+      this._recordingChunks = [];
+      this._silenceStart = null;
+      if (this._vadState !== 'processing') {
+        this._vadState = 'idle';
+      }
+    }
   }
 
   handleAudioChunk(buffer) {
