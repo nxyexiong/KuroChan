@@ -4,7 +4,7 @@
  * Registers all IPC handlers, initialises services, creates the window.
  * All business logic lives in the service modules; this file wires them together.
  */
-const { app, BrowserWindow, ipcMain, dialog, session } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog, session, screen } = require('electron');
 const path = require('path');
 const fs   = require('fs');
 const os   = require('os');
@@ -181,7 +181,7 @@ function createWindow() {
     transparent: true,
     frame: false,
     alwaysOnTop: true,
-    resizable: true,
+    resizable: false,
     hasShadow: false,
     backgroundColor: '#00000000',
     webPreferences: {
@@ -205,6 +205,18 @@ function createWindow() {
   const config = readConfig();
   configureAllServices(config);
   initServices(mainWindow);
+
+  // Poll global cursor position so the Live2D model can track it
+  setInterval(() => {
+    if (!mainWindow || mainWindow.isDestroyed()) return;
+    const cursor = screen.getCursorScreenPoint();
+    const bounds = mainWindow.getBounds();
+    const cx = bounds.x + bounds.width  / 2;
+    const cy = bounds.y + bounds.height / 2;
+    const x = Math.max(-1, Math.min(1, (cursor.x - cx) / (bounds.width  / 2)));
+    const y = Math.max(-1, Math.min(1, (cursor.y - cy) / (bounds.height / 2)));
+    mainWindow.webContents.send('model:cursor-pos', { x, y });
+  }, 50);
 }
 
 app.whenReady().then(() => {

@@ -50,6 +50,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   onSTTError:    (fn) => ipcRenderer.on('stt:error',     (_e, d) => fn(d)),
 
   // ── Model push events (main → renderer) ─────────────────────────────────
-  onModelSetParam: (fn) => ipcRenderer.on('model:set-parameter', (_e, d) => fn(d)),
-  onModelStatus:   (fn) => ipcRenderer.on('model:status',        (_e, d) => fn(d)),
+  onModelSetParam:  (fn) => ipcRenderer.on('model:set-parameter', (_e, d) => fn(d)),
+  onModelStatus:    (fn) => ipcRenderer.on('model:status',        (_e, d) => fn(d)),
+  onModelCursorPos: (fn) => ipcRenderer.on('model:cursor-pos',    (_e, d) => fn(d)),
 });

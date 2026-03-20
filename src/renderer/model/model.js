@@ -27,6 +27,18 @@ let _currentModel = null;
 /** Desired mouth open value, driven by model:set-parameter IPC from main. */
 let _lipSyncValue = 0;
 
+/** Normalised cursor offset (−1…1) for eye / head tracking. */
+let _cursorTargetX = 0;
+let _cursorTargetY = 0;
+let _cursorX = 0;
+let _cursorY = 0;
+const CURSOR_LERP = 0.08;
+
+window.electronAPI.onModelCursorPos(({ x, y }) => {
+  _cursorTargetX = x;
+  _cursorTargetY = y;
+});
+
 // ── Listen for parameter updates from main ────────────────────────────────────
 window.electronAPI.onModelSetParam(({ id, value, weight }) => {
   if (!_currentModel) return;
@@ -62,9 +74,18 @@ export async function loadModel(modelPath, modelScale = 100) {
   const coreModel = model.internalModel.coreModel;
   const _origCoreUpdate = coreModel.update.bind(coreModel);
   coreModel.update = () => {
-    try {
-      coreModel.setParameterValueById('ParamMouthOpenY', _lipSyncValue, 1.0);
-    } catch { /* parameter may not exist on every model */ }
+    // Smoothly interpolate cursor position toward target
+    _cursorX += (_cursorTargetX - _cursorX) * CURSOR_LERP;
+    _cursorY += (_cursorTargetY - _cursorY) * CURSOR_LERP;
+
+    try { coreModel.setParameterValueById('ParamMouthOpenY', _lipSyncValue, 1.0); } catch {}
+    // Eye / head / body tracking driven by global cursor position
+    try { coreModel.setParameterValueById('ParamEyeBallX',    _cursorX,       0.8); } catch {}
+    try { coreModel.setParameterValueById('ParamEyeBallY',   -_cursorY,       0.8); } catch {}
+    try { coreModel.setParameterValueById('ParamAngleX',      _cursorX * 30,  0.6); } catch {}
+    try { coreModel.setParameterValueById('ParamAngleY',     -_cursorY * 30,  0.6); } catch {}
+    try { coreModel.setParameterValueById('ParamAngleZ',     -_cursorX * 10,  0.4); } catch {}
+    try { coreModel.setParameterValueById('ParamBodyAngleX',  _cursorX * 10,  0.4); } catch {}
     _origCoreUpdate();
   };
 

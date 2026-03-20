@@ -54,3 +54,4 @@ export const STT_READY         = 'stt:ready';        // { available: boolean }
 // main → renderer (push events):
 export const MODEL_SET_PARAM   = 'model:set-parameter'; // { id, value, weight }
 export const MODEL_STATUS      = 'model:status';        // { text }
+export const MODEL_CURSOR_POS  = 'model:cursor-pos';    // { x, y } normalised −1…1
