@@ -10,8 +10,6 @@ export const GET_CONFIG        = 'get-config';
 export const SAVE_CONFIG       = 'save-config';
 export const OPEN_FOLDER_DIALOG = 'open-folder-dialog';
 export const OPEN_FILE_DIALOG  = 'open-file-dialog';
-export const GET_MEMORY        = 'get-memory';
-export const SAVE_MEMORY       = 'save-memory';
 export const CLOSE_WINDOW      = 'close-window';
 
 // ── Chat ──────────────────────────────────────────────────────────────────────
@@ -23,10 +21,6 @@ export const CHAT_STREAM_START = 'chat:stream:start';
 export const CHAT_STREAM_DATA  = 'chat:stream:data';
 export const CHAT_STREAM_END   = 'chat:stream:end';
 export const CHAT_STREAM_ERROR = 'chat:stream:error';
-
-// ── LLM ───────────────────────────────────────────────────────────────────────
-/** renderer → main: request session summary before closing */
-export const LLM_SUMMARIZE     = 'llm:summarize';
 
 // ── TTS ───────────────────────────────────────────────────────────────────────
 /** renderer → main: stop current speech */

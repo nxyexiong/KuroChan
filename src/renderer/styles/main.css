@@ -273,3 +273,21 @@ details.settings-subsection[open] > .settings-subsection-title::before { transfo
 .btn-modal:hover { background: #4a4a4a; }
 .btn-modal.primary { background: #2980b9; }
 .btn-modal.primary:hover { background: #3498db; }
+
+/* GitHub Copilot settings */
+.copilot-code-row { margin: 4px 0 8px; display: flex; flex-direction: column; gap: 3px; }
+.copilot-code-row.hidden { display: none; }
+/* BYOK (custom endpoint) */
+.settings-check-row { display: flex; align-items: center; gap: 6px; cursor: pointer; margin-bottom: 8px; }
+.settings-check-row input { margin: 0; }
+#copilot-github-fields.hidden,
+#copilot-byok-fields.hidden,
+#copilot-byok-azure-row.hidden,
+#copilot-byok-wireapi-row.hidden { display: none; }
+.copilot-code {
+  font-family: 'Consolas', 'Courier New', monospace;
+  font-size: 18px;
+  font-weight: 700;
+  letter-spacing: 3px;
+  color: #2ecc71;
+}

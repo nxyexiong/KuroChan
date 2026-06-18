@@ -18,6 +18,8 @@ class STTService {
     this._listening       = false;
     /** @type {((text: string) => void) | null} */
     this._onTranscript    = null;
+    /** @type {(() => void) | null} — fired when the user starts speaking (idle→speech). */
+    this._onSpeechStart   = null;
   }
 
   setWindow(win) {
@@ -42,6 +44,10 @@ class STTService {
 
   setOnTranscript(fn) {
     this._onTranscript = fn;
+  }
+
+  setOnSpeechStart(fn) {
+    this._onSpeechStart = fn;
   }
 
   startListening(sampleRate) {
@@ -89,6 +95,9 @@ class STTService {
         this._recordingChunks = [Float32Array.from(chunk)];
         this._silenceStart = null;
         this._setVadState('speech');
+        // Barge-in: the user started talking — notify so the app can abort any
+        // in-flight LLM turn and TTS playback.
+        if (this._onSpeechStart) { try { this._onSpeechStart(); } catch { /* ignore */ } }
       }
     } else if (this._vadState === 'speech') {
       this._recordingChunks.push(Float32Array.from(chunk));

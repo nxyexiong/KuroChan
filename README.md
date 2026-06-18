@@ -1,17 +1,16 @@
 # KuroChan
 
-A transparent, frameless desktop mascot built with **Electron**, **PixiJS v6**, and **pixi-live2d-display**. KuroChan renders a Live2D character on your desktop and connects it to a language model, text-to-speech, and local speech-to-text so you can talk to her.
+A transparent, frameless desktop mascot built with **Electron**, **PixiJS v6**, and **pixi-live2d-display**. KuroChan renders a Live2D character on your desktop and connects it to **GitHub Copilot**, text-to-speech, and local speech-to-text so you can talk to her.
 
 ---
 
 ## Features
 
 - Transparent, always-on-top frameless window with a draggable, zoomable Live2D model
-- LLM chat with multiple providers (OpenAI, xAI/Grok, OpenClaw) and configurable system prompt (character personality)
-- Text-to-speech with multiple providers (OpenAI TTS, xAI TTS) and lip-sync driven from audio amplitude with adjustable pitch
+- LLM chat powered by **GitHub Copilot** (via [@github/copilot-sdk](https://github.com/github/copilot-sdk)) — a persistent conversation that resumes across launches, with a configurable character (system prompt). Optionally **bring your own key (BYOK)** to use any OpenAI-compatible, Azure OpenAI, or Anthropic endpoint (including local models like Ollama) instead of a GitHub login
+- Text-to-speech with **local streaming** via [Kokoro-82M](https://github.com/hexgrad/kokoro) (default, no cloud key) plus cloud providers (OpenAI TTS, xAI TTS), with lip-sync driven from audio amplitude and adjustable pitch
 - Local speech-to-text via [whisper.cpp](https://github.com/ggerganov/whisper.cpp) (no cloud API required)
 - Voice-activity detection (VAD) with configurable threshold and silence duration
-- Persistent conversation memory across sessions
 - In-app Settings UI — no config file editing needed
 
 ---
@@ -90,8 +89,8 @@ npm run dev      # launch Electron without rebuilding (fast iteration)
 Click the **⚙** gear icon inside the app to open the Settings panel. From there you can set:
 
 - **Model** — path to the Live2D model folder
-- **LLM** — service selector (OpenAI / xAI / OpenClaw), character system prompt, and per-provider config (API key, model)
-- **TTS** — service selector (OpenAI TTS / xAI TTS), pitch adjustment (−12 to +12 semitones), and per-provider config (API key, model, voice, speed, language)
+- **LLM** — **GitHub Copilot** is the LLM backend. Set the character (system prompt), then use the device-flow **Log in** button (shows a code to enter at <https://github.com/login/device>), the model / thinking-effort / context-length selectors loaded asynchronously from your Copilot account, and a **Reset / New session** button. Copilot keeps one persistent conversation across launches; its CLI data lives in `~/.kurochan/.copilot` and its workspace in `~/.kurochan/workspace`. Requires a GitHub Copilot subscription. Alternatively, toggle **Use a custom model endpoint (BYOK)** at the top of the section to switch from the GitHub login to your own OpenAI-compatible, Azure OpenAI, or Anthropic endpoint (set the provider type, endpoint URL, optional API key, and model name; optionally a thinking-effort level, context length / max prompt tokens, and max output tokens for models whose limits the runtime can't infer). When BYOK is enabled, inference goes to your endpoint and a GitHub login is **not** required — handy for local models (e.g. Ollama at `http://localhost:11434/v1`).
+- **TTS** — service selector (**Kokoro (local)** / OpenAI TTS / xAI TTS), pitch adjustment (−12 to +12 semitones), and per-provider config. **Kokoro** is the default and runs 100% locally (streaming, 24 kHz): set the **model folder**, precision (dtype), voice, and speed. Like Whisper, you supply the model yourself — download it from [onnx-community/Kokoro-82M-v1.0-ONNX](https://huggingface.co/onnx-community/Kokoro-82M-v1.0-ONNX) (the folder must contain `config.json`, `tokenizer.json`, and an `onnx/model_*.onnx` matching the chosen precision; the 54 voice files ship with the app).
 - **STT** — Whisper model file path, CPU threads, language, and VAD parameters (voice threshold, silence duration)
 
 Settings are saved to disk and take effect after clicking **Save & Reload**.
@@ -153,17 +152,17 @@ KuroChan/
 │   │   │   ├── chat-service.js       Base class — shared chat pipeline (validate, stop TTS, send to LLM)
 │   │   │   └── builtin-chat-service.js  Specialization — renderer chat box entry point
 │   │   │
-│   │   ├── llm/                      LLM module (facade → base → openai / xai / openclaw)
-│   │   │   ├── llm.js                Facade — selects service, manages the single output stream
-│   │   │   ├── llm-service.js        Base class — history, memory, message composition, summarization
-│   │   │   ├── openai-llm-service.js     Specialization — OpenAI Chat Completions (streaming SSE)
-│   │   │   ├── xai-llm-service.js        Specialization — xAI / Grok Chat Completions
-│   │   │   ├── openclaw-llm-service.js   Specialization — OpenClaw WebSocket gateway
-│   │   │   └── openclaw-device-identity.js  Ed25519 device identity (Node crypto)
+│   │   ├── llm/                      LLM module (GitHub Copilot only)
+│   │   │   ├── llm.js                Facade — owns the single output stream, delegates to the Copilot service
+│   │   │   ├── copilot-llm-service.js    GitHub Copilot SDK backend (persistent session, reply-only stream)
+│   │   │   ├── copilot-auth.js           GitHub device-flow login + ~/.kurochan paths + model listing
+│   │   │   └── copilot-cli-shim.cjs      Electron preload that fixes the spawned CLI's argv parsing
 │   │   │
-│   │   ├── tts/                      TTS module (facade → base → openai / xai)
+│   │   ├── tts/                      TTS module (facade → base → kokoro / openai / xai)
 │   │   │   ├── tts.js                Facade — selects service, delegates speak / stop / volume
 │   │   │   ├── tts-service.js        Base class — window, IPC _send, stream lifecycle, pitch, lip sync
+│   │   │   ├── kokoro-tts-service.js Specialization — local Kokoro-82M streaming TTS (24 kHz PCM, default)
+│   │   │   ├── kokoro-worker.js      Worker thread that runs Kokoro synthesis off the main thread
 │   │   │   ├── openai-tts-service.js Specialization — OpenAI TTS (streaming AAC)
 │   │   │   └── xai-tts-service.js    Specialization — xAI TTS
 │   │   │
@@ -251,7 +250,7 @@ Every main-process module follows a three-layer pattern:
 #### Data Flows
 
 - **Chat**: renderer sends user text via `chat:builtin-send` → `BuiltinChatService.handleBuiltinChatMessage()` → base `handleUserMessage()` validates input, stops any playing TTS, and forwards to LLM `input()`
-- **LLM**: accepts input from multiple sources (chat UI, STT); base class manages conversation history, memory, message composition, and summarization; specializations only implement `stream()` for their provider
+- **LLM**: accepts input from multiple sources (chat UI, STT) and forwards it to the single GitHub Copilot service, which keeps a persistent server-side session (one conversation across launches) and streams back only the assistant's reply text — reasoning and tool activity are suppressed
 - **TTS**: base class receives `speak(text)`, wires stream events to IPC (`tts:audio-chunk`, `tts:audio-end`), and drives lip sync from volume reports; specialization streams audio from the provider
 - **STT**: base class owns the full VAD pipeline (silence detection, RMS, resampling, chunk buffering); specialization only implements `transcribe(samplesBuffer)` — transcript is fed directly to LLM
 - **Model**: receives `setMouthOpen(value)` calls from TTS → builtin specialization sends `model:set-parameter` IPC to renderer → renderer applies to Live2D coreModel

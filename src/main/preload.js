@@ -14,8 +14,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
   resolveModelDir:  (dir) => ipcRenderer.invoke('resolve-model-dir', dir),
   openFolderDialog: () => ipcRenderer.invoke('open-folder-dialog'),
   openFileDialog:   (opts) => ipcRenderer.invoke('open-file-dialog', opts),
-  getMemory:        () => ipcRenderer.invoke('get-memory'),
-  saveMemory:       (entry) => ipcRenderer.invoke('save-memory', entry),
 
   // ── Chat ────────────────────────────────────────────────────────────────
   chatBuiltinSend: (text) => ipcRenderer.invoke('chat:builtin-send', { text }),
@@ -26,8 +24,12 @@ contextBridge.exposeInMainWorld('electronAPI', {
   onChatStreamEnd:   (fn) => ipcRenderer.on('chat:stream:end',   (_e, d) => fn(d)),
   onChatStreamError: (fn) => ipcRenderer.on('chat:stream:error', (_e, d) => fn(d)),
 
-  // ── LLM ─────────────────────────────────────────────────────────────────
-  llmSummarize: () => ipcRenderer.invoke('llm:summarize'),
+  // ── GitHub Copilot ──────────────────────────────────────────────────────
+  copilotAuthStatus:   () => ipcRenderer.invoke('copilot:auth-status'),
+  copilotLogin:        () => ipcRenderer.invoke('copilot:login'),
+  copilotListModels:   () => ipcRenderer.invoke('copilot:list-models'),
+  copilotResetSession: () => ipcRenderer.invoke('copilot:reset-session'),
+  onCopilotLoginCode:  (fn) => ipcRenderer.on('copilot:login-code', (_e, d) => fn(d)),
 
   // ── TTS ─────────────────────────────────────────────────────────────────
   ttsStop:   () => ipcRenderer.invoke('tts:stop'),

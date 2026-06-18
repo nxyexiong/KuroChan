@@ -21,7 +21,9 @@
     "webpack-cli": "^5.1.4"
   },
   "dependencies": {
+    "@github/copilot-sdk": "^1.0.2",
     "koffi": "^2.9.0",
+    "kokoro-js": "^1.2.1",
     "pixi-live2d-display": "^0.4.0",
     "pixi.js": "^6.5.10",
     "ws": "^8.19.0"
@@ -32,13 +34,21 @@
     "copyright": "Copyright © 2026",
     "asar": true,
     "asarUnpack": [
-      "resources/whisper/**"
+      "resources/whisper/**",
+      "node_modules/@github/copilot/**",
+      "node_modules/@github/copilot-sdk/**",
+      "src/main/llm/copilot-cli-shim.cjs",
+      "node_modules/onnxruntime-node/**",
+      "node_modules/kokoro-js/**",
+      "src/main/tts/kokoro-worker.js"
     ],
     "extraResources": [
       {
         "from": "resources/models/",
         "to": "models/",
-        "filter": ["**/*"]
+        "filter": [
+          "**/*"
+        ]
       }
     ],
     "directories": {
@@ -55,7 +65,6 @@
       "package.json",
       "!resources/whisper/README.md",
       "!third_party/whisper.cpp/**",
-      "!third_party/openclaw/**",
       "!third_party/build/**",
       "!third_party/CMakeLists.txt",
       "!third_party/whisper_wrapper.cpp",

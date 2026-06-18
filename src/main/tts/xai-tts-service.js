@@ -1,20 +1,24 @@
 /**
  * xai-tts-service.js — xAI streaming TTS via WebSocket (main process).
- * Connects to wss://api.x.ai/v1/tts, sends text deltas, receives
- * base64-encoded PCM audio chunks, and returns a Readable stream.
+ *
+ * Connects to wss://api.x.ai/v1/tts, streams text deltas in as the LLM generates
+ * them, and receives base64 PCM audio chunks back — a natively streaming
+ * provider, so begin/push/end map directly onto the socket protocol.
  */
-const { Readable } = require('stream');
 const { WebSocket } = require('ws');
 const { TTSService } = require('./tts-service.js');
 
 class XAITTSService extends TTSService {
   constructor() {
     super();
-    this._apiKey    = '';
-    this._voice     = 'ara';
-    this._language  = 'auto';
-    this._ws        = null;
+    this._apiKey   = '';
+    this._voice    = 'ara';
+    this._language = 'auto';
     this._audioFormat = 'pcm';
+    this._ws       = null;
+    this._wsReady  = false;
+    this._pending  = [];     // text deltas queued before the socket opens
+    this._endQueued = false; // end() arrived before the socket opened
   }
 
   _configure({ xai = {} } = {}) {
@@ -24,69 +28,79 @@ class XAITTSService extends TTSService {
     if (language !== undefined && language !== '') this._language = language;
   }
 
-  /**
-   * Open a WebSocket to xAI TTS, stream text in, and return a Readable
-   * that emits decoded PCM audio chunks.
-   * @param {string} text
-   * @returns {Readable}
-   */
-  streamAudio(text) {
-    if (!this._apiKey) throw new Error('xAI TTS API key is not set. Add it in Settings.');
+  _validate() {
+    return this._apiKey ? null : 'xAI TTS API key is not set. Add it in Settings.';
+  }
 
-    const output = new Readable({ read() {} });
+  _beginImpl() {
+    const gen = this._gen;
+    this._wsReady   = false;
+    this._pending   = [];
+    this._endQueued = false;
 
     const params = new URLSearchParams({
-      voice:       this._voice,
-      language:    this._language,
-      codec:       'pcm',
-      sample_rate: '24000',
+      voice: this._voice, language: this._language, codec: 'pcm', sample_rate: '24000',
     });
-
     const ws = new WebSocket(`wss://api.x.ai/v1/tts?${params}`, {
       headers: { Authorization: `Bearer ${this._apiKey}` },
     });
     this._ws = ws;
 
     ws.on('open', () => {
-      ws.send(JSON.stringify({ type: 'text.delta', delta: text }));
-      ws.send(JSON.stringify({ type: 'text.done' }));
+      if (!this._isCurrent(gen)) { try { ws.close(); } catch { /* ignore */ } return; }
+      this._wsReady = true;
+      for (const t of this._pending) ws.send(JSON.stringify({ type: 'text.delta', delta: t }));
+      this._pending = [];
+      if (this._endQueued) ws.send(JSON.stringify({ type: 'text.done' }));
     });
 
     ws.on('message', (raw) => {
+      if (!this._isCurrent(gen)) return;
       let msg;
       try { msg = JSON.parse(raw); } catch { return; }
-
       if (msg.type === 'audio.delta' && msg.delta) {
-        output.push(Buffer.from(msg.delta, 'base64'));
+        this._emitChunk(Buffer.from(msg.delta, 'base64'));
       } else if (msg.type === 'audio.done') {
-        output.push(null);
-        ws.close();
-        this._ws = null;
+        this._emitEnd();
+        try { ws.close(); } catch { /* ignore */ }
+        if (this._ws === ws) this._ws = null;
       } else if (msg.type === 'error') {
-        output.destroy(new Error(`xAI TTS error: ${msg.message}`));
-        ws.close();
-        this._ws = null;
+        this._emitError(new Error(`xAI TTS error: ${msg.message}`));
+        try { ws.close(); } catch { /* ignore */ }
+        if (this._ws === ws) this._ws = null;
       }
     });
 
     ws.on('error', (err) => {
-      if (!output.destroyed) output.destroy(err);
-      this._ws = null;
+      if (this._isCurrent(gen)) this._emitError(err);
+      if (this._ws === ws) this._ws = null;
     });
+    ws.on('close', () => { if (this._ws === ws) this._ws = null; });
+  }
 
-    ws.on('close', () => {
-      if (!output.destroyed && output.readable) output.push(null);
-      this._ws = null;
-    });
+  _pushImpl(text) {
+    if (this._ws && this._wsReady) {
+      this._ws.send(JSON.stringify({ type: 'text.delta', delta: text }));
+    } else {
+      this._pending.push(text); // flushed on 'open'
+    }
+  }
 
-    return output;
+  _endImpl() {
+    if (this._ws && this._wsReady) {
+      this._ws.send(JSON.stringify({ type: 'text.done' }));
+    } else {
+      this._endQueued = true;   // sent after 'open'
+    }
   }
 
   abort() {
-    if (this._ws) {
-      this._ws.close();
-      this._ws = null;
-    }
+    const ws = this._ws;
+    this._ws = null;
+    this._wsReady = false;
+    this._pending = [];
+    this._endQueued = false;
+    if (ws) { try { ws.close(); } catch { /* ignore */ } }
   }
 }
 

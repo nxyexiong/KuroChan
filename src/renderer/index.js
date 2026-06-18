@@ -39,20 +39,6 @@ async function init() {
 }
 
 // ── Buttons ───────────────────────────────────────────────────────────────────
-document.getElementById('btn-save').addEventListener('click', async () => {
-  setStatus('💾 Saving memory…', 0);
-  try {
-    const summary = await window.electronAPI.llmSummarize();
-    if (summary) {
-      const now = new Date();
-      const pad = n => String(n).padStart(2, '0');
-      const timestamp = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}-${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`;
-      await window.electronAPI.saveMemory({ timestamp, memory: summary });
-    }
-    setStatus('✅ Memory saved');
-  } catch { setStatus('⚠ Failed to save memory'); }
-});
-
 document.getElementById('btn-close').addEventListener('click', () => {
   window.electronAPI.closeWindow();
 });

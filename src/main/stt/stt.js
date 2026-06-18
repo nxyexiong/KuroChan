@@ -26,6 +26,7 @@ function stopListening()             { return service.stopListening(); }
 function handleAudioChunk(buffer)    { return service.handleAudioChunk(buffer); }
 function setSTTWindow(win)           { return service.setWindow(win); }
 function setOnTranscript(fn)         { return service.setOnTranscript(fn); }
+function setOnSpeechStart(fn)        { return service.setOnSpeechStart(fn); }
 
 module.exports = {
   configureSTT,
@@ -35,4 +36,5 @@ module.exports = {
   handleAudioChunk,
   setSTTWindow,
   setOnTranscript,
+  setOnSpeechStart,
 };

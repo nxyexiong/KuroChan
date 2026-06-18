@@ -1,22 +1,15 @@
 /**
- * llm.js — LLM facade. Runs in the main process.
+ * llm.js — LLM facade (main process). KuroChan uses GitHub Copilot only.
  *
- * Selects the active LLM service and routes the single public output stream.
- * All business logic (history, memory, message composition, summarization)
- * lives in LLMService.
+ * Owns the single public output stream and delegates to the Copilot service.
  */
-const { OpenAILLMService }   = require('./openai-llm-service.js');
-const { OpenClawLLMService } = require('./openclaw-llm-service.js');
-const { XAILLMService }      = require('./xai-llm-service.js');
+const { CopilotLLMService } = require('./copilot-llm-service.js');
 
-const SERVICES = {
-  'openai':   OpenAILLMService,
-  'openclaw': OpenClawLLMService,
-  'xai':      XAILLMService,
-};
-const DEFAULT_SERVICE = 'openai';
+let service = new CopilotLLMService();
 
-let service = new OpenAILLMService();
+// Main-process dependencies injected into the service (Copilot session-id
+// persistence). Re-applied whenever a new service instance is created.
+let _deps = {};
 
 // ── Registered output stream handlers ─────────────────────────────────────────
 let _onStart = null;
@@ -35,16 +28,25 @@ function setOutputStream({ onStart, onData, onEnd, onError }) {
   _onError = onError || null;
 }
 
-function configureLLM(llmConfig) {
-  const key = llmConfig?.service || DEFAULT_SERVICE;
-  const ServiceClass = SERVICES[key] || SERVICES[DEFAULT_SERVICE];
-  service = new ServiceClass();
-  service.configure(llmConfig);
+function configureLLM(llmConfig, deps) {
+  if (deps) _deps = deps;
+  // Stop the previous service's resources (the spawned Copilot CLI) before
+  // replacing it, so reconfiguring doesn't leak processes.
+  if (service && typeof service.dispose === 'function') { service.dispose(); }
+  service = new CopilotLLMService();
+  if (typeof service.setDeps === 'function') service.setDeps(_deps);
+  service.configure(llmConfig || {});
 }
 
-function setMemory(entries)  { service.setMemory(entries); }
-function clearHistory()      { service.clearHistory(); }
-function summarizeSession()  { return service.summarizeSession(); }
+/** Reset the Copilot conversation. Returns the new session id or null. */
+function resetCopilotSession() {
+  return (service && typeof service.resetSession === 'function') ? service.resetSession() : Promise.resolve(null);
+}
+
+/** Stop the active service's resources (e.g. on app quit). */
+function disposeLLM() {
+  return (service && typeof service.dispose === 'function') ? service.dispose() : Promise.resolve();
+}
 
 /**
  * Send a user message from any source (chat UI, STT, etc.).
@@ -60,4 +62,9 @@ function input(text) {
   });
 }
 
-module.exports = { configureLLM, setMemory, setOutputStream, input, clearHistory, summarizeSession };
+/** Abort the in-flight LLM turn (barge-in). Safe to call when idle. */
+function abort() {
+  if (service && typeof service.abort === 'function') service.abort();
+}
+
+module.exports = { configureLLM, setOutputStream, input, abort, resetCopilotSession, disposeLLM };

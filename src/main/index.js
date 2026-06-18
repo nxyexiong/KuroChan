@@ -19,9 +19,10 @@ if (process.platform === 'win32') {
 }
 
 // ── Service modules ───────────────────────────────────────────────────────────
-const { configureLLM, setOutputStream, input: llmInput, setMemory, summarizeSession } = require('./llm/llm.js');
-const { configureTTS, speak, stopTTS, setTTSWindow, handleVolume } = require('./tts/tts.js');
-const { configureSTT, sttAvailable, startListening, stopListening, handleAudioChunk, setSTTWindow, setOnTranscript } = require('./stt/stt.js');
+const { configureLLM, setOutputStream, input: llmInput, abort: abortLLM, resetCopilotSession, disposeLLM } = require('./llm/llm.js');
+const { loginWithDeviceFlow, listCopilotModels } = require('./llm/copilot-auth.js');
+const { configureTTS, speak, beginSpeak, pushSpeak, endSpeak, stopTTS, setTTSWindow, handleVolume, disposeTTS } = require('./tts/tts.js');
+const { configureSTT, sttAvailable, startListening, stopListening, handleAudioChunk, setSTTWindow, setOnTranscript, setOnSpeechStart } = require('./stt/stt.js');
 const { handleBuiltinChatMessage } = require('./chat/chat.js');
 const { setBuiltinModelWindow } = require('./model/model.js');
 
@@ -94,10 +95,9 @@ async function whisperTranscribe({ samplesBuffer, modelPath, nThreads = 4, langu
   return transcript;
 }
 
-// ── Config / Memory persistence ───────────────────────────────────────────────
+// ── Config persistence ────────────────────────────────────────────────────────
 const CONFIG_DIR  = path.join(os.homedir(), '.kurochan');
 const CONFIG_PATH = path.join(CONFIG_DIR, 'config.json');
-const MEMORY_PATH = path.join(CONFIG_DIR, 'memory.json');
 
 function readConfig() {
   try { return JSON.parse(fs.readFileSync(CONFIG_PATH, 'utf8')); }
@@ -109,14 +109,15 @@ function writeConfig(data) {
   fs.writeFileSync(CONFIG_PATH, JSON.stringify(data, null, 2), 'utf8');
 }
 
-function readMemory() {
-  try { return JSON.parse(fs.readFileSync(MEMORY_PATH, 'utf8')); }
-  catch { return []; }
-}
-
-function writeMemory(entries) {
-  fs.mkdirSync(CONFIG_DIR, { recursive: true });
-  fs.writeFileSync(MEMORY_PATH, JSON.stringify(entries, null, 2), 'utf8');
+// Persist the Copilot session id so the same conversation resumes next launch.
+// Injected into the LLM service via configureLLM deps.
+function persistCopilotSessionId(sessionId) {
+  const cfg = readConfig();
+  cfg.llm = cfg.llm || {};
+  cfg.llm.copilot = cfg.llm.copilot || {};
+  if (sessionId) cfg.llm.copilot.sessionId = sessionId;
+  else delete cfg.llm.copilot.sessionId;
+  writeConfig(cfg);
 }
 
 // ── App root directory (for resolving relative model paths) ───────────────────
@@ -133,31 +134,34 @@ function initServices(win) {
   setSTTWindow(win);
   setBuiltinModelWindow(win);
 
-  // Wire the single LLM output stream → renderer chat display + TTS
+  // Wire the single LLM output stream → renderer chat display + TTS.
+  // TTS streams incrementally: begin on first token, push each delta, end when
+  // the turn is complete — so speech starts while the LLM is still generating
+  // (and continues across multi-part tool turns) instead of waiting for the end.
   setOutputStream({
     onStart: () => {
       if (win && !win.isDestroyed()) win.webContents.send('chat:stream:start', {});
+      beginSpeak();
     },
     onData: (chunk) => {
       if (win && !win.isDestroyed()) win.webContents.send('chat:stream:data', { chunk });
+      pushSpeak(chunk);
     },
-    onEnd: (fullReply) => {
+    onEnd: () => {
       if (win && !win.isDestroyed()) win.webContents.send('chat:stream:end', {});
-      if (fullReply && fullReply.trim()) speak(fullReply.trim());
+      endSpeak();
     },
     onError: (err) => {
       if (win && !win.isDestroyed()) win.webContents.send('chat:stream:error', { message: err.message });
+      stopTTS();
     },
   });
 }
 
 function configureAllServices(config) {
-  // LLM
-  configureLLM(config.llm ?? {});
-
-  // Memory → LLM
-  const memory = readMemory();
-  setMemory(memory);
+  // LLM — inject Copilot session-id persistence. On-demand: this only stores
+  // config and never spawns the Copilot CLI (that happens lazily on first use).
+  configureLLM(config.llm ?? {}, { onSessionId: persistCopilotSessionId });
 
   // TTS
   configureTTS(config.tts ?? {});
@@ -165,8 +169,17 @@ function configureAllServices(config) {
   // STT (with whisper transcribe function injected)
   configureSTT(config.stt ?? {}, { transcribe: whisperTranscribe });
 
-  // Route STT transcripts directly to LLM (not through chat)
+  // Barge-in: the moment the user starts speaking, abort the in-flight LLM turn
+  // and stop any TTS so KuroChan doesn't talk over them.
+  setOnSpeechStart(() => {
+    abortLLM();
+    stopTTS();
+  });
+
+  // Route STT transcripts directly to LLM (not through chat). Abort any current
+  // turn first so a new spoken message supersedes the previous one.
   setOnTranscript((text) => {
+    abortLLM();
     stopTTS();
     llmInput(text);
   });
@@ -248,6 +261,21 @@ app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') app.quit();
 });
 
+// Graceful shutdown: stop the Copilot CLI and the Kokoro synthesis worker before
+// exiting. The worker must be drained to idle and terminated cleanly — quitting
+// while it is mid-inference (an uninterruptible native call) crashes the runtime.
+let _quitting = false;
+app.on('before-quit', (event) => {
+  if (_quitting) return;
+  _quitting = true;
+  event.preventDefault();
+  (async () => {
+    try { disposeLLM(); } catch { /* ignore */ }
+    try { await disposeTTS(); } catch { /* ignore */ }
+    app.exit(0);
+  })();
+});
+
 // ── IPC: System / config ──────────────────────────────────────────────────────
 
 ipcMain.on('close-window', (event) => {
@@ -260,6 +288,18 @@ ipcMain.handle('get-config', () => {
 });
 
 ipcMain.handle('save-config', (event, data) => {
+  // The Copilot session id and token are owned by the LLM service and the login
+  // flow — not the Settings form. Preserve them from the existing config so that
+  // saving Settings never drops the ongoing conversation, regardless of what the
+  // renderer submits or whether the user clicks Save.
+  const prev = readConfig();
+  const prevCopilot = (prev.llm && prev.llm.copilot) ? prev.llm.copilot : {};
+  if (prevCopilot.token || prevCopilot.sessionId) {
+    data.llm = data.llm || {};
+    data.llm.copilot = data.llm.copilot || {};
+    if (prevCopilot.token)     data.llm.copilot.token = prevCopilot.token;
+    if (prevCopilot.sessionId) data.llm.copilot.sessionId = prevCopilot.sessionId;
+  }
   writeConfig(data);
   // Re-configure services with new config, then re-wire windows
   const config = readConfig();
@@ -302,24 +342,72 @@ ipcMain.handle('open-file-dialog', async (event, { title, filters } = {}) => {
   return canceled ? null : filePaths[0];
 });
 
-ipcMain.handle('get-memory', () => readMemory());
-
-ipcMain.handle('save-memory', (_event, entry) => {
-  const entries = readMemory();
-  entries.push(entry);
-  writeMemory(entries);
-});
-
 // ── IPC: Chat ─────────────────────────────────────────────────────────────────
 
 ipcMain.handle('chat:builtin-send', (_event, { text }) => {
   handleBuiltinChatMessage(text);
 });
 
-// ── IPC: LLM ──────────────────────────────────────────────────────────────────
+// ── IPC: GitHub Copilot ───────────────────────────────────────────────────────
 
-ipcMain.handle('llm:summarize', async () => {
-  return summarizeSession();
+let _copilotLoginInFlight = false;
+
+ipcMain.handle('copilot:auth-status', () => {
+  const cfg = readConfig();
+  return { loggedIn: !!(cfg.llm && cfg.llm.copilot && cfg.llm.copilot.token) };
+});
+
+ipcMain.handle('copilot:login', async (event) => {
+  if (_copilotLoginInFlight) return { ok: false, error: 'A login is already in progress.' };
+  _copilotLoginInFlight = true;
+  const win = BrowserWindow.fromWebContents(event.sender);
+  try {
+    const token = await loginWithDeviceFlow((code) => {
+      if (win && !win.isDestroyed()) win.webContents.send('copilot:login-code', code);
+    });
+    const cfg = readConfig();
+    cfg.llm = cfg.llm || {};
+    cfg.llm.copilot = cfg.llm.copilot || {};
+    cfg.llm.copilot.token = token;
+    writeConfig(cfg);
+    // Apply the new token to services (on-demand — does not spawn the CLI).
+    configureAllServices(readConfig());
+    if (win) initServices(win);
+    return { ok: true };
+  } catch (err) {
+    return { ok: false, error: err.message };
+  } finally {
+    _copilotLoginInFlight = false;
+  }
+});
+
+ipcMain.handle('copilot:list-models', async () => {
+  const cfg = readConfig();
+  const token = cfg.llm && cfg.llm.copilot && cfg.llm.copilot.token;
+  if (!token) return { ok: false, error: 'Not logged in.' };
+  try {
+    const models = await listCopilotModels(token);
+    return { ok: true, models };
+  } catch (err) {
+    return { ok: false, error: err.message };
+  }
+});
+
+ipcMain.handle('copilot:reset-session', async () => {
+  try {
+    const newId = await resetCopilotSession();
+    if (newId == null) {
+      // Copilot isn't the active service — just clear the persisted id.
+      const cfg = readConfig();
+      if (cfg.llm && cfg.llm.copilot && cfg.llm.copilot.sessionId) {
+        delete cfg.llm.copilot.sessionId;
+        writeConfig(cfg);
+      }
+    }
+    return { ok: true };
+  } catch (err) {
+    return { ok: false, error: err.message };
+  }
 });
 
 // ── IPC: TTS ──────────────────────────────────────────────────────────────────
