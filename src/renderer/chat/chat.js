@@ -5,6 +5,8 @@
  * No knowledge of LLM, TTS, or STT.
  */
 
+import backend from '../backend.js';
+
 const CHAT_HTML = `
 <div id="chat-panel">
   <div id="chat-output"><span id="chat-output-text"></span></div>
@@ -22,13 +24,13 @@ export function initChat() {
   const textarea   = document.getElementById('chat-textarea');
 
   // Listen for streamed reply from main
-  window.electronAPI.onChatStreamStart(() => { outputText.textContent = ''; });
-  window.electronAPI.onChatStreamData(({ chunk }) => { outputText.textContent += chunk; });
-  window.electronAPI.onChatStreamError(({ message }) => { outputText.textContent = `⚠ ${message}`; });
+  backend.onChatStreamStart(() => { outputText.textContent = ''; });
+  backend.onChatStreamData(({ chunk }) => { outputText.textContent += chunk; });
+  backend.onChatStreamError(({ message }) => { outputText.textContent = `⚠ ${message}`; });
 
   function send(message) {
     if (!message) return;
-    window.electronAPI.chatBuiltinSend(message);
+    backend.chatBuiltinSend(message);
   }
 
   document.getElementById('chat-send-btn').addEventListener('click', () => {

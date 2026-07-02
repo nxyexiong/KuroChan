@@ -12,6 +12,7 @@ A transparent, frameless desktop mascot built with **Electron**, **PixiJS v6**, 
 - Local speech-to-text via [whisper.cpp](https://github.com/ggerganov/whisper.cpp) (no cloud API required)
 - Voice-activity detection (VAD) with configurable threshold and silence duration
 - In-app Settings UI — no config file editing needed
+- **Web access** — a built-in web companion server runs alongside the desktop app, so you can use the full app (Live2D model, chat, voice, TTS, settings) from any browser on your phone or another PC over your LAN. It's a single instance: the desktop window and every browser are views of the one backend running on your PC (same models, config, and Copilot conversation), configurable in Settings → Server
 
 ---
 
@@ -97,6 +98,55 @@ Settings are saved to disk and take effect after clicking **Save & Reload**.
 
 ---
 
+## Web access (use from your phone or another device)
+
+KuroChan runs as a desktop app **and**, at the same time, a small web companion server — so you can also open the full app (Live2D model, chat, voice, TTS, settings) in any browser on your phone, tablet, or another PC on the same network. It stays a **single instance**: the desktop window and every connected browser are views of the one backend running on your PC (same models, same config, same Copilot conversation, all events broadcast to everyone). It is *not* a multi-user service.
+
+The renderer is host-agnostic — it talks to one abstract backend contract (`window.kuroBackend`). For the desktop window that contract is Electron IPC; for a browser it's a WebSocket to the built-in server. The renderer bundle is identical either way.
+
+### It just runs
+
+The web companion starts automatically when you launch the app. On startup the console prints the URLs to open, including your LAN IP:
+
+```
+  ┌─ KuroChan web companion ──────────────────────────
+  │  Open in a browser (HTTPS):
+  │    https://localhost:8443
+  │    https://192.168.1.3:8443
+  └────────────────────────────────────────────────────
+```
+
+Open the LAN URL on your phone and you get the full app.
+
+### Configure it in Settings → Server
+
+The **Server** section of the in-app Settings panel controls web access (the same URLs are shown there for convenience):
+
+- **Enable web access** — turn the web companion on/off (default: on).
+- **Use HTTPS** — default on; **required for microphone / voice input on phones** (see below).
+- **Port** — default `8443` (HTTPS) / `8080` (HTTP).
+
+Changing these and clicking **Save & Reload** restarts the server with the new settings.
+
+### HTTPS & the microphone (important for phones)
+
+Browsers only allow microphone capture (for voice input / Whisper STT) in a **secure context**. That's automatic on the PC's own `localhost`, but **blocked on a plain-`http://` LAN address** — so to use voice from your phone you need HTTPS.
+
+HTTPS is therefore **on by default**, using a **self-signed certificate** generated automatically and cached in `~/.kurochan/web-cert/`. The first time you open the page your browser warns that the certificate is untrusted — accept it once (e.g. *Advanced → Proceed*). After that, voice input works from your phone.
+
+- Text chat, TTS audio, the Live2D model, and settings all work with HTTPS turned off too — only the **microphone** needs HTTPS on a phone.
+
+### Notes & limitations
+
+- **One instance, many views.** Multiple browsers can connect at once; they all view and drive the same backend. Choosing a model or voice changes it for the backend PC.
+- **File pickers.** The **Browse…** buttons open native OS dialogs, which only make sense on the PC. In a browser they do nothing — instead just type the path into the field (it refers to the **backend PC's** filesystem).
+- **Firewall.** Allow the chosen port through your PC's firewall so other devices can reach it.
+- **Changing the port from a browser** will drop that browser's connection — reopen the app at the new port. It's simplest to change server settings from the desktop app.
+- The window drag/close buttons are hidden in the browser (your browser provides its own window chrome).
+- Closing the desktop window quits the app (and the web companion with it).
+
+---
+
 ## Release Build (Windows installer)
 
 `build.cmd` produces a distributable NSIS installer under `release/`.
@@ -124,7 +174,7 @@ npm run dist
 
 | Script | Description |
 |---|---|
-| `npm start` | webpack (dev) + launch Electron |
+| `npm start` | webpack (dev) + launch Electron (desktop + web companion) |
 | `npm run dev` | Launch Electron without rebuilding |
 | `npm run build:js` | webpack bundle only |
 | `npm run build:whisper` | Build `whisper_kuro.dll` native addon |
@@ -143,9 +193,15 @@ KuroChan/
 ├── package.json
 │
 ├── src/
-│   ├── main/                         ── Electron main process (Node.js, CommonJS) ──
-│   │   ├── index.js                  Entry point — window creation, IPC handlers, service wiring
-│   │   ├── preload.js                Context bridge — exposes window.electronAPI to renderer
+│   ├── main/                         ── Main process (Node.js, CommonJS) — desktop + web ──
+│   │   ├── index.js                  Entry — desktop window + IPC, and starts the web companion
+│   │   ├── app-core.js               Transport-neutral core — config, services, broadcast, handlers
+│   │   ├── preload.js                Desktop bridge — exposes window.kuroBackend over IPC
+│   │   │
+│   │   ├── web/                      Web companion (runs alongside desktop → any browser)
+│   │   │   ├── server.js             HTTP(S) + WebSocket, static assets, model mount, broadcast
+│   │   │   ├── web-api.js            Browser window.kuroBackend over WebSocket (served, not bundled)
+│   │   │   └── self-signed.js        Cached self-signed TLS cert (phone mic needs HTTPS)
 │   │   │
 │   │   ├── chat/                     Chat module (facade → base → builtin)
 │   │   │   ├── chat.js               Facade — selects service, exposes configureChat / handleBuiltinChatMessage
@@ -176,8 +232,9 @@ KuroChan/
 │   │       ├── model-service.js      Base class — abstract setMouthOpen()
 │   │       └── builtin-model-service.js  Specialization — Electron IPC model control
 │   │
-│   ├── renderer/                     ── Renderer process (ES modules, webpack bundled) ──
+│   ├── renderer/                     ── Renderer (host-agnostic; ES modules, webpack bundled) ──
 │   │   ├── index.js                  Entry point — config, settings, bootstrap, UI wiring
+│   │   ├── backend.js                Single seam — reads window.kuroBackend (IPC or WebSocket)
 │   │   ├── status.js                 Status bar helpers
 │   │   ├── settings.js               Settings modal (pure DOM)
 │   │   ├── chat/
@@ -214,8 +271,9 @@ KuroChan/
 KuroChan follows a strict **main/renderer process separation**:
 
 - **Main process** (`src/main/`) — All business logic, remote API calls, and service orchestration run here. The renderer never calls external APIs directly.
-- **Renderer process** (`src/renderer/`) — Pure UI layer. Handles DOM manipulation, PixiJS/Live2D rendering, audio playback, and mic capture. Communicates with main exclusively through `window.electronAPI` (IPC).
-- **Shared** (`src/shared/`) — IPC channel name constants that document the protocol between main and renderer.
+- **Renderer process** (`src/renderer/`) — Pure, **host-agnostic** UI layer. Handles DOM manipulation, PixiJS/Live2D rendering, audio playback, and mic capture. It talks to the backend only through a single seam (`backend.js` → `window.kuroBackend`) and never knows whether it runs in Electron or a browser.
+- **Two transports, one contract** — the `window.kuroBackend` contract is injected by `preload.js` (Electron IPC) for the desktop window, or by `web/web-api.js` (WebSocket) for a browser. Both drive the *same* services via `app-core.js`, whose composite target broadcasts every event to the desktop window and all connected browsers at once. The renderer bundle is identical in both.
+- **Shared** (`src/shared/`) — IPC/WS channel name constants that document the protocol between the renderer and the backend.
 
 #### Design Pattern — Facade → Base Class → Specialization
 

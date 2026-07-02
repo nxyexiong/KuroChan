@@ -7,6 +7,7 @@
  */
 
 import { setStatus } from '../status.js';
+import backend from '../backend.js';
 
 let _sttOn = false;
 let _stream = null;
@@ -26,14 +27,14 @@ async function _startMicCapture() {
 
   _workletNode.port.onmessage = (e) => {
     // e.data is Float32Array
-    window.electronAPI.sttAudioChunk(e.data.buffer);
+    backend.sttAudioChunk(e.data.buffer);
   };
 
-  await window.electronAPI.sttStart(_audioCtx.sampleRate);
+  await backend.sttStart(_audioCtx.sampleRate);
 }
 
 function _stopMicCapture() {
-  window.electronAPI.sttStop();
+  backend.sttStop();
   if (_workletNode) { _workletNode.disconnect(); _workletNode = null; }
   if (_audioCtx) { _audioCtx.close(); _audioCtx = null; }
   if (_stream) { _stream.getTracks().forEach(t => t.stop()); _stream = null; }
@@ -65,7 +66,7 @@ export async function initSTTButton() {
   if (!btn) return;
 
   // Check if STT is available in main
-  const { available } = await window.electronAPI.sttReady();
+  const { available } = await backend.sttReady();
   if (!available) {
     btn.style.display = 'none';
     return;
@@ -93,7 +94,7 @@ export async function initSTTButton() {
   });
 
   // VAD state from main
-  window.electronAPI.onSTTVadState(({ state }) => {
+  backend.onSTTVadState(({ state }) => {
     if (state === 'speech') {
       btn.classList.add('speech');
     } else {
@@ -102,7 +103,7 @@ export async function initSTTButton() {
   });
 
   // STT errors from main
-  window.electronAPI.onSTTError(({ message }) => {
+  backend.onSTTError(({ message }) => {
     setStatus(`⚠ STT: ${message}`, 6000);
     if (_sttOn) {
       _sttOn = false;

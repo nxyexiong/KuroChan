@@ -2,6 +2,8 @@
  * settings.js — injects the settings modal into the DOM and handles its logic (renderer)
  */
 
+import backend from './backend.js';
+
 const DEFAULTS = {
   model: {
     modelDir: 'resources/models/Haru',
@@ -54,6 +56,11 @@ const DEFAULTS = {
       nThreads:  4,
       language:  'en',
     },
+  },
+  server: {
+    enabled: true,
+    https:   true,
+    port:    8443,
   },
 };
 
@@ -329,6 +336,27 @@ const MODAL_HTML = `
       </div>
     </details>
 
+    <details class="settings-section">
+      <summary class="settings-section-title">Server</summary>
+      <div class="settings-section-body">
+      <label class="settings-check-row" for="server-enabled">
+        <input type="checkbox" id="server-enabled" />
+        Enable web access <span class="settings-hint">(use the app from a browser / phone on your LAN)</span>
+      </label>
+      <div id="server-fields">
+      <label class="settings-check-row" for="server-https">
+        <input type="checkbox" id="server-https" />
+        Use HTTPS <span class="settings-hint">(required for microphone / voice input on phones)</span>
+      </label>
+      <label for="server-port-input">Port</label>
+      <div class="input-row">
+        <input type="number" id="server-port-input" min="1" max="65535" step="1" placeholder="default: 8443" />
+      </div>
+      <div id="server-info" class="settings-hint server-info"></div>
+      </div>
+      </div>
+    </details>
+
     </div>
 
     <div class="modal-actions">
@@ -369,6 +397,12 @@ export function initSettings() {
   const sttWhisperThreadsInput     = document.getElementById('stt-whisper-threads-input');
   const sttWhisperLanguageInput    = document.getElementById('stt-whisper-language-input');
   const browseWhisperModelBtn      = document.getElementById('btn-browse-whisper-model');
+  // Server (web access)
+  const serverEnabled              = document.getElementById('server-enabled');
+  const serverHttps                = document.getElementById('server-https');
+  const serverPortInput            = document.getElementById('server-port-input');
+  const serverFields               = document.getElementById('server-fields');
+  const serverInfo                 = document.getElementById('server-info');
   // GitHub Copilot
   const copilotLoginBtn        = document.getElementById('copilot-login-btn');
   const copilotLoginStatus     = document.getElementById('copilot-login-status');
@@ -402,7 +436,7 @@ export function initSettings() {
   let copilotSavedContext = 'default';
 
   document.getElementById('btn-settings').addEventListener('click', async () => {
-    const config = await window.electronAPI.getConfig();
+    const config = await backend.getConfig();
     const model = config.model ?? {};
     const llm   = config.llm   ?? {};
     modelDirInput.value        = model.modelDir      || DEFAULTS.model.modelDir;
@@ -427,7 +461,7 @@ export function initSettings() {
     updateByokVisibility();
     copilotLoginCodeRow.classList.add('hidden');
     // Async auth + model load with a loading state (no CLI work unless logged in).
-    window.electronAPI.copilotAuthStatus().then((s) => {
+    backend.copilotAuthStatus().then((s) => {
       setCopilotLoggedIn(s && s.loggedIn);
       if (s && s.loggedIn) {
         loadCopilotModels();
@@ -463,23 +497,29 @@ export function initSettings() {
     sttWhisperModelPathInput.value = sttWhisper.modelPath         || DEFAULTS.stt.whisper.modelPath;
     sttWhisperThreadsInput.value   = sttWhisper.nThreads          ?? DEFAULTS.stt.whisper.nThreads;
     sttWhisperLanguageInput.value  = sttWhisper.language          || DEFAULTS.stt.whisper.language;
+    const server = config.server ?? {};
+    serverEnabled.checked   = server.enabled !== false;
+    serverHttps.checked     = server.https   !== false;
+    serverPortInput.value   = server.port ?? DEFAULTS.server.port;
+    updateServerVisibility();
+    loadServerInfo();
     modal.classList.remove('hidden');
   });
 
   cancelBtn.addEventListener('click', () => modal.classList.add('hidden'));
 
   browseBtn.addEventListener('click', async () => {
-    const dir = await window.electronAPI.openFolderDialog();
+    const dir = await backend.openFolderDialog();
     if (dir) modelDirInput.value = dir;
   });
 
   browseKokoroModelBtn.addEventListener('click', async () => {
-    const dir = await window.electronAPI.openFolderDialog();
+    const dir = await backend.openFolderDialog();
     if (dir) ttsKokoroModelDirInput.value = dir;
   });
 
   browseWhisperModelBtn.addEventListener('click', async () => {
-    const file = await window.electronAPI.openFileDialog({
+    const file = await backend.openFileDialog({
       title:   'Select Whisper GGML model',
       filters: [{ name: 'GGML model', extensions: ['bin'] }],
     });
@@ -487,7 +527,7 @@ export function initSettings() {
   });
 
   saveBtn.addEventListener('click', async () => {
-    await window.electronAPI.saveConfig({
+    await backend.saveConfig({
       general: {},
       model: {
         modelDir:   modelDirInput.value.trim() || DEFAULTS.model.modelDir,
@@ -545,8 +585,13 @@ export function initSettings() {
           language:  sttWhisperLanguageInput.value.trim() || DEFAULTS.stt.whisper.language,
         },
       },
+      server: {
+        enabled: serverEnabled.checked,
+        https:   serverHttps.checked,
+        port:    serverPortInput.value !== '' ? Number(serverPortInput.value) : DEFAULTS.server.port,
+      },
     });
-    // saveConfig triggers a full window reload — nothing after this line runs
+    // saveConfig triggers a full reload of every view — nothing after this line runs
   });
 
   // ── GitHub Copilot wiring ────────────────────────────────────────────────
@@ -601,7 +646,7 @@ export function initSettings() {
     copilotModelSelect.disabled = true;
     copilotEffortSelect.disabled = true;
     try {
-      const res = await window.electronAPI.copilotListModels();
+      const res = await backend.copilotListModels();
       if (res && res.ok) {
         populateCopilotModels(res.models);
       } else {
@@ -633,7 +678,7 @@ export function initSettings() {
     copilotLoginStatus.textContent = 'Starting login…';
     copilotLoginCodeRow.classList.add('hidden');
     try {
-      const res = await window.electronAPI.copilotLogin();
+      const res = await backend.copilotLogin();
       if (res && res.ok) {
         setCopilotLoggedIn(true);
         copilotLoginCodeRow.classList.add('hidden');
@@ -648,7 +693,7 @@ export function initSettings() {
     }
   });
 
-  window.electronAPI.onCopilotLoginCode(({ userCode, verificationUri }) => {
+  backend.onCopilotLoginCode(({ userCode, verificationUri }) => {
     copilotLoginCode.textContent = userCode;
     copilotLoginTip.textContent = `Open ${verificationUri} in your browser, enter this code, then wait here…`;
     copilotLoginCodeRow.classList.remove('hidden');
@@ -659,7 +704,7 @@ export function initSettings() {
     copilotResetSessionBtn.disabled = true;
     copilotSessionStatus.textContent = 'Resetting…';
     try {
-      const res = await window.electronAPI.copilotResetSession();
+      const res = await backend.copilotResetSession();
       copilotSessionStatus.textContent = (res && res.ok) ? '✅ New session started' : `⚠ ${res && res.error ? res.error : 'Failed'}`;
     } catch {
       copilotSessionStatus.textContent = '⚠ Failed to reset session';
@@ -667,4 +712,30 @@ export function initSettings() {
       copilotResetSessionBtn.disabled = false;
     }
   });
+
+  // ── Server (web access) wiring ───────────────────────────────────────────
+  function updateServerVisibility() {
+    serverFields.classList.toggle('hidden', !serverEnabled.checked);
+  }
+  serverEnabled.addEventListener('change', updateServerVisibility);
+
+  async function loadServerInfo() {
+    serverInfo.textContent = '';
+    try {
+      const info = await backend.getServerInfo();
+      if (!info) return;
+      if (info.running && Array.isArray(info.urls) && info.urls.length) {
+        serverInfo.innerHTML = 'Currently reachable at:<br>' +
+          info.urls.map((u) => `<span class="server-url">${u}</span>`).join('<br>');
+      } else if (info.enabled === false) {
+        serverInfo.textContent = 'Web access is currently disabled.';
+      } else if (info.error) {
+        serverInfo.textContent = `⚠ Server not running: ${info.error}`;
+      } else {
+        serverInfo.textContent = 'Server not running.';
+      }
+    } catch {
+      /* server:info unavailable — leave blank */
+    }
+  }
 }

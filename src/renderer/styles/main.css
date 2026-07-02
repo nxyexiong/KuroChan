@@ -283,7 +283,10 @@ details.settings-subsection[open] > .settings-subsection-title::before { transfo
 #copilot-github-fields.hidden,
 #copilot-byok-fields.hidden,
 #copilot-byok-azure-row.hidden,
-#copilot-byok-wireapi-row.hidden { display: none; }
+#copilot-byok-wireapi-row.hidden,
+#server-fields.hidden { display: none; }
+.server-info { margin: 2px 0 8px; line-height: 1.6; }
+.server-url { font-family: 'Consolas', 'Courier New', monospace; color: #2ecc71; }
 .copilot-code {
   font-family: 'Consolas', 'Courier New', monospace;
   font-size: 18px;
@@ -291,3 +294,46 @@ details.settings-subsection[open] > .settings-subsection-title::before { transfo
   letter-spacing: 3px;
   color: #2ecc71;
 }
+
+/* ── Web host (browser / mobile) ─────────────────────────────────────────────
+   Applied only when opened in a browser (html.web-host, set by web-api.js).
+   The desktop Electron app is untouched. Goals:
+     - dark-gray backdrop (the desktop window is transparent → browser shows white)
+     - lock page zoom / panning so the fixed UI can't be messed up on mobile
+       (the model canvas keeps its own gestures; scrollable areas keep pan-y)
+     - noticeably larger UI + ≥16px inputs (also stops iOS focus auto-zoom) */
+html.web-host,
+html.web-host body {
+  background: #2b2b2b;
+  touch-action: none;
+  overscroll-behavior: none;
+}
+html.web-host canvas { touch-action: none; }
+html.web-host .modal-body,
+html.web-host #chat-output,
+html.web-host #chat-textarea { touch-action: pan-y; }
+
+/* Toolbar — larger, finger-friendly touch targets */
+html.web-host #toolbar { top: 12px; right: 12px; gap: 10px; }
+html.web-host .btn { width: 40px; height: 40px; font-size: 20px; opacity: 0.9; }
+
+/* Status */
+html.web-host #status { font-size: 16px; padding: 8px 14px; max-width: 90%; }
+
+/* Chat panel */
+html.web-host #chat-panel { bottom: 14px; left: 14px; right: 14px; gap: 8px; padding: 10px 12px 12px; border-radius: 12px; }
+html.web-host #chat-output { height: 22vh; max-height: 180px; font-size: 16px; padding: 10px 12px; }
+html.web-host #chat-textarea { min-height: 60px; max-height: 120px; font-size: 16px; padding: 10px 12px; }
+html.web-host #chat-send-btn { font-size: 16px; padding: 12px 0; }
+
+/* Settings modal — wider, larger text, 16px inputs */
+html.web-host .modal { width: min(92vw, 460px); height: auto; max-height: 88vh; font-size: 15px; padding: 20px; }
+html.web-host .modal h3 { font-size: 18px; }
+html.web-host .modal label { font-size: 14px; }
+html.web-host .settings-hint { font-size: 12px; }
+html.web-host .settings-section-title { font-size: 13px; }
+html.web-host .settings-subsection-title { font-size: 12px; }
+html.web-host .input-row input,
+html.web-host .input-row select,
+html.web-host .input-row textarea { font-size: 16px; padding: 9px 10px; }
+html.web-host .btn-modal { font-size: 15px; padding: 9px 16px; }

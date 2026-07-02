@@ -11,6 +11,7 @@ import { loadModel } from './model/model.js';
 import { initChat } from './chat/chat.js';
 import { initTTSPlayer } from './tts/tts-player.js';
 import { initSTTButton } from './stt/stt-ui.js';
+import backend, { capabilities } from './backend.js';
 
 // ── Settings ──────────────────────────────────────────────────────────────────
 initSettings();
@@ -23,10 +24,10 @@ if (!window.Live2DCubismCore) {
 
 // ── Init ─────────────────────────────────────────────────────────────────────
 async function init() {
-  const config = await window.electronAPI.getConfig();
+  const config = await backend.getConfig();
 
   const modelConfig = config.model ?? {};
-  const modelPath = await window.electronAPI.resolveModelDir(modelConfig.modelDir);
+  const modelPath = await backend.resolveModelDir(modelConfig.modelDir);
   if (!modelPath) {
     setStatus('⚙ No model found — click ⚙ to choose a model folder');
   } else {
@@ -38,13 +39,21 @@ async function init() {
   await initSTTButton();
 }
 
+// ── Window chrome (feature-detected, not host-detected) ─────────────────────────
+// Only a host that owns a desktop window (Electron) gets the drag/close buttons;
+// a web browser provides its own window chrome.
+if (!capabilities.windowControls) {
+  document.getElementById('btn-toggle')?.remove();
+  document.getElementById('btn-close')?.remove();
+}
+
 // ── Buttons ───────────────────────────────────────────────────────────────────
-document.getElementById('btn-close').addEventListener('click', () => {
-  window.electronAPI.closeWindow();
+document.getElementById('btn-close')?.addEventListener('click', () => {
+  backend.closeWindow();
 });
 
 // ── Hotkeys ───────────────────────────────────────────────────────────────────
-window.electronAPI.onToggleMic(() => {
+backend.onToggleMic(() => {
   document.getElementById('btn-mic')?.click();
 });
 

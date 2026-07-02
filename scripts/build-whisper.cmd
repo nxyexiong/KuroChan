@@ -56,9 +56,20 @@ pushd "%BUILD_DIR%"
 
 cmake "%THIRD_PARTY%" -DCMAKE_BUILD_TYPE=Release
 if errorlevel 1 (
-    echo ERROR: CMake configure failed.
-    popd
-    exit /b 1
+    :: A stale CMake cache makes configure fail -- most commonly after a Visual
+    :: Studio / MSVC toolset update relocates the compiler path baked into the
+    :: cache (e.g. CMAKE_ASM_COMPILER still points at an uninstalled MSVC version).
+    :: Reconfiguring alone does NOT help because CMake reuses the bad cache, so we
+    :: delete it and retry once from a clean state before giving up.
+    echo   Configure failed -- clearing stale CMake cache and retrying clean...
+    if exist "CMakeCache.txt" del /q "CMakeCache.txt"
+    if exist "CMakeFiles"     rd /s /q "CMakeFiles"
+    cmake "%THIRD_PARTY%" -DCMAKE_BUILD_TYPE=Release
+    if errorlevel 1 (
+        echo ERROR: CMake configure failed.
+        popd
+        exit /b 1
+    )
 )
 
 :: ── 3. CMake build ───────────────────────────────────────────────────────────

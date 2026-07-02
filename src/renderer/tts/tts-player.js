@@ -8,6 +8,8 @@
  * An AnalyserNode provides real-time volume metering for lip sync.
  */
 
+import backend from '../backend.js';
+
 const AAC_MIME       = 'audio/aac';
 const PCM_SAMPLE_RATE = 24000;
 
@@ -87,7 +89,7 @@ function _pumpVolume() {
   for (let i = 0; i < data.length; i++) sum += data[i] * data[i];
   const rms = Math.sqrt(sum / data.length);
   const scaled = Math.min(1, rms * 4);
-  window.electronAPI.ttsVolume(scaled);
+  backend.ttsVolume(scaled);
   _animFrame = requestAnimationFrame(_pumpVolume);
 }
 
@@ -108,11 +110,11 @@ export function initTTSPlayer() {
 
   _audioEl.addEventListener('ended', () => {
     _stopPlayback();
-    window.electronAPI.ttsVolume(0);
+    backend.ttsVolume(0);
   });
 
   // ── Stream start ─────────────────────────────────────────────────────────
-  window.electronAPI.onTTSStart(({ pitch, format }) => {
+  backend.onTTSStart(({ pitch, format }) => {
     _stopPlayback();
     _format = format || 'aac';
 
@@ -146,7 +148,7 @@ export function initTTSPlayer() {
   });
 
   // ── Stream chunk ─────────────────────────────────────────────────────────
-  window.electronAPI.onTTSChunk(({ data }) => {
+  backend.onTTSChunk(({ data }) => {
     if (_format === 'pcm') {
       if (!_pcmPlaying) return;
 
@@ -180,12 +182,12 @@ export function initTTSPlayer() {
   });
 
   // ── Stream end ───────────────────────────────────────────────────────────
-  window.electronAPI.onTTSEnd(() => {
+  backend.onTTSEnd(() => {
     if (_format === 'pcm') {
       const remaining = Math.max(0, _nextTime - ctx.currentTime);
       setTimeout(() => {
         _stopPlayback();
-        window.electronAPI.ttsVolume(0);
+        backend.ttsVolume(0);
       }, remaining * 1000 + 100);
     } else {
       _streamEnded = true;
@@ -196,14 +198,14 @@ export function initTTSPlayer() {
   });
 
   // ── Stop / error ─────────────────────────────────────────────────────────
-  window.electronAPI.onTTSStop(() => {
+  backend.onTTSStop(() => {
     _stopPlayback();
-    window.electronAPI.ttsVolume(0);
+    backend.ttsVolume(0);
   });
 
-  window.electronAPI.onTTSError(({ message }) => {
+  backend.onTTSError(({ message }) => {
     console.error('[TTS Player] Error from main:', message);
     _stopPlayback();
-    window.electronAPI.ttsVolume(0);
+    backend.ttsVolume(0);
   });
 }

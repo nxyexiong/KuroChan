@@ -2,7 +2,7 @@
  * ipc-channels.js — Shared IPC channel names between main and renderer.
  *
  * All cross-process communication goes through these named channels.
- * Main process registers handlers; renderer calls via window.electronAPI.
+ * Main process registers handlers; renderer calls via window.kuroBackend.
  */
 
 // ── Config / system ───────────────────────────────────────────────────────────

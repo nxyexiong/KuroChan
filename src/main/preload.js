@@ -1,17 +1,22 @@
 /**
  * preload.js — Context bridge between main and renderer.
  *
- * Exposes a clean API on window.electronAPI. The renderer never calls
+ * Exposes a clean API on window.kuroBackend. The renderer never calls
  * ipcRenderer directly.
  */
 const { contextBridge, ipcRenderer } = require('electron');
 
-contextBridge.exposeInMainWorld('electronAPI', {
+contextBridge.exposeInMainWorld('kuroBackend', {
+  // Host capabilities — feature detection for the renderer (not host detection).
+  // Electron owns a movable/closable desktop window; the web host does not.
+  capabilities: { windowControls: true },
+
   // ── System / config ─────────────────────────────────────────────────────
   closeWindow:      () => ipcRenderer.send('close-window'),
   getConfig:        () => ipcRenderer.invoke('get-config'),
   saveConfig:       (data) => ipcRenderer.invoke('save-config', data),
   resolveModelDir:  (dir) => ipcRenderer.invoke('resolve-model-dir', dir),
+  getServerInfo:    () => ipcRenderer.invoke('server:info'),
   openFolderDialog: () => ipcRenderer.invoke('open-folder-dialog'),
   openFileDialog:   (opts) => ipcRenderer.invoke('open-file-dialog', opts),
 
