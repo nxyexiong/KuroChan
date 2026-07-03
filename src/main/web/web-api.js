@@ -43,6 +43,35 @@
     document.addEventListener('dblclick', function (e) { e.preventDefault(); }, { passive: false });
   } catch (e) { /* non-fatal */ }
 
+  // ── Keep the phone screen awake (Screen Wake Lock API) ───────────────────────
+  // So the mascot stays visible and TTS/voice keep working without the phone
+  // dimming/locking. Supported on iOS Safari 16.4+ and Android Chrome; needs a
+  // secure context (HTTPS — the server default). The lock auto-releases when the
+  // tab is hidden, so we re-acquire on visibilitychange; some browsers only grant
+  // it during a user gesture, so we also (re)try on the first tap/key. All
+  // best-effort: any failure (older browser, low battery) is silently ignored.
+  (function () {
+    if (!('wakeLock' in navigator)) return;
+    var sentinel = null;
+    var requesting = false;
+    function acquire() {
+      if (requesting || sentinel || document.visibilityState !== 'visible') return;
+      requesting = true;
+      navigator.wakeLock.request('screen').then(function (s) {
+        sentinel = s;
+        requesting = false;
+        s.addEventListener('release', function () { sentinel = null; });
+      }).catch(function () { requesting = false; /* denied — ignore */ });
+    }
+    document.addEventListener('visibilitychange', function () {
+      if (document.visibilityState === 'visible') acquire();
+    });
+    ['pointerdown', 'touchend', 'click', 'keydown'].forEach(function (ev) {
+      document.addEventListener(ev, acquire, { passive: true });
+    });
+    acquire(); // best-effort immediate attempt
+  })();
+
   var ws = null;
   var connected = false;
   var outbox = [];          // frames queued until the socket opens

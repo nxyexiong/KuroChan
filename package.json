@@ -1,6 +1,6 @@
 {
   "name": "kurochan",
-  "version": "1.4.0",
+  "version": "1.4.1",
   "description": "KuroChan — Live2D desktop mascot with transparent background using Electron + PixiJS",
   "main": "src/main/index.js",
   "scripts": {
