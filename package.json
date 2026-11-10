@@ -10,6 +10,7 @@
     "start": "npm run build:js && electron .",
     "dev": "electron .",
     "debug": "electron . --inspect=9229 --remote-debugging-port=9222",
+    "test": "node --test \"test/*.test.js\"",
     "dist": "npm run build:js -- --mode production && electron-builder --win"
   },
   "devDependencies": {

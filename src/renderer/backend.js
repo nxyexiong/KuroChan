@@ -28,9 +28,13 @@ if (!backend) {
  * reacts to which features exist, so the same code runs everywhere.
  *   - windowControls: the host owns a movable/closable app window (Electron).
  *     Web browsers provide their own window chrome, so this is false there.
+ *   - settings: 'full' (every section) or 'binding-only' (remote browsers via
+ *     kurochan-server, which may not change any settings except the binding).
+ *   - binding: 'device' (bind/unbind this PC) or 'account' (remote browser:
+ *     shows the signed-in account and can unbind the PC through the website).
  */
 export const capabilities = Object.assign(
-  { windowControls: false },
+  { windowControls: false, settings: 'full', binding: 'device' },
   backend.capabilities || {},
 );
 

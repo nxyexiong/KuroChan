@@ -14,11 +14,24 @@
  *
  * The object is created SYNCHRONOUSLY (with an outbound queue) so it exists the
  * moment the bundle runs, even before the socket has opened.
+ *
+ * Two hosts load this file:
+ *   - LAN web companion (src/main/web/server.js): full app over `/ws`.
+ *   - Remote access via kurochan-server (`<script data-mode="remote">`, injected
+ *     by src/main/remote/remote-tunnel.js): relay protocol over `/ws/client`.
+ *     Remote browsers can chat / talk but not change settings (binding only):
+ *       - mic audio is resampled here to 16 kHz Int16 (binary kind 2)
+ *       - TTS audio arrives as binary kind 1
+ *       - lip sync is driven locally from this browser's own playback volume
+ *       - presence / close codes drive offline, /bind and /login redirects
  */
 (function () {
   'use strict';
 
-  var WS_URL = (location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + '/ws';
+  var script = document.currentScript;
+  var REMOTE = !!(script && script.getAttribute('data-mode') === 'remote');
+
+  var WS_URL = (location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + (REMOTE ? '/ws/client' : '/ws');
 
   // ── Web-host presentation (web only; runs before the shared renderer bundle) ──
   // Mark the document as web-hosted (`.web-host` CSS enlarges the UI for browsers
@@ -80,6 +93,8 @@
   var seq = 0;
 
   // ── transport ──────────────────────────────────────────────────────────────
+  // LAN frames:    {t:'invoke', id, channel, arg} → {t:'res', id, ok, result|error}
+  // Remote frames: {t:'invoke', id, ch, args}     → {t:'result', id, ok, value|error}
   function rawSend(text) {
     if (connected) { try { ws.send(text); } catch (e) { outbox.push(text); } }
     else outbox.push(text);
@@ -87,7 +102,9 @@
 
   function invoke(channel, arg) {
     var id = ++seq;
-    var frame = JSON.stringify({ t: 'invoke', id: id, channel: channel, arg: arg });
+    var frame = JSON.stringify(REMOTE
+      ? { t: 'invoke', id: id, ch: channel, args: arg }
+      : { t: 'invoke', id: id, channel: channel, arg: arg });
     return new Promise(function (resolve, reject) {
       pending.set(id, { resolve: resolve, reject: reject });
       rawSend(frame);
@@ -95,7 +112,9 @@
   }
 
   function sendMsg(channel, arg) {
-    rawSend(JSON.stringify({ t: 'send', channel: channel, arg: arg }));
+    rawSend(JSON.stringify(REMOTE
+      ? { t: 'send', ch: channel, args: arg }
+      : { t: 'send', channel: channel, arg: arg }));
   }
 
   function sendBinary(arrayBuffer) {
@@ -125,33 +144,140 @@
     }
   }
 
+  // ── remote: status overlay (offline PC / reconnecting) ───────────────────────
+  var overlay = null;
+  function showOverlay(text) {
+    if (!overlay) {
+      overlay = document.createElement('div');
+      overlay.id = 'remote-overlay';
+      var st = overlay.style;
+      st.position = 'fixed'; st.left = '0'; st.top = '0'; st.right = '0'; st.bottom = '0';
+      st.display = 'flex'; st.alignItems = 'center'; st.justifyContent = 'center';
+      st.background = 'rgba(20,20,20,0.82)'; st.color = '#eee'; st.zIndex = '10000';
+      st.font = '16px system-ui, sans-serif'; st.textAlign = 'center'; st.padding = '24px';
+      (document.body || document.documentElement).appendChild(overlay);
+    }
+    overlay.textContent = text;
+    overlay.style.display = 'flex';
+  }
+  function hideOverlay() { if (overlay) overlay.style.display = 'none'; }
+
+  // ── remote: mic resampler (Float32 @ device rate → Int16 @ 16 kHz) ───────────
+  var MIC_KIND = 2, TTS_KIND = 1;
+  var rs = { ratio: 1, pos: 0, prev: 0 };
+  function resetResampler(srcRate) {
+    rs.ratio = (srcRate > 0 ? srcRate : 48000) / 16000;
+    rs.pos = 0;
+    rs.prev = 0;
+  }
+  function resampleToS16(f32) {
+    var n = f32.length;
+    if (n === 0) return new Int16Array(0);
+    var out = new Int16Array(Math.floor((n - rs.pos) / rs.ratio) + 2);
+    var k = 0, p = rs.pos;
+    while (p <= n - 1) {
+      var v;
+      if (p < 0) {
+        v = rs.prev + (f32[0] - rs.prev) * (p + 1);
+      } else {
+        var i = Math.floor(p), t = p - i;
+        var a = f32[i], b = (i + 1 < n) ? f32[i + 1] : a;
+        v = a + (b - a) * t;
+      }
+      v = v < -1 ? -1 : (v > 1 ? 1 : v);
+      out[k++] = v < 0 ? v * 0x8000 : v * 0x7fff;
+      p += rs.ratio;
+    }
+    rs.pos = p - n;
+    rs.prev = f32[n - 1];
+    return out.subarray(0, k);
+  }
+  function sendMicRemote(arrayBuffer) {
+    var pcm = resampleToS16(new Float32Array(arrayBuffer));
+    if (!pcm.length) return;
+    var frame = new Uint8Array(2 + pcm.byteLength);
+    frame[0] = MIC_KIND;
+    frame[1] = 0; // the server fills in our clientId
+    frame.set(new Uint8Array(pcm.buffer, pcm.byteOffset, pcm.byteLength), 2);
+    sendBinary(frame.buffer);
+  }
+
+  function onBinaryRemote(buf) {
+    var u8 = new Uint8Array(buf);
+    if (u8.length < 2) return;
+    var start = 2 + u8[1];
+    if (u8[0] === TTS_KIND && u8.length >= start) dispatch('tts:chunk', { data: u8.slice(start) });
+  }
+
+  // ── remote: account helpers (kurochan-server JSON API, same origin) ──────────
+  function api(method, path, csrf) {
+    var headers = { Accept: 'application/json' };
+    if (csrf) headers['X-CSRF-Token'] = csrf;
+    return fetch(path, { method: method, headers: headers, credentials: 'same-origin' }).then(function (res) {
+      if (res.status === 204) return null;
+      return res.json().catch(function () { return null; }).then(function (body) {
+        if (!res.ok) throw new Error((body && body.message) || ('Request failed (' + res.status + ')'));
+        return body;
+      });
+    });
+  }
+  function accountInfo() {
+    return api('GET', '/api/me').then(function (me) {
+      return { username: me.user && me.user.username, device: me.device || null, csrfToken: me.csrfToken };
+    });
+  }
+
+  var backoff = 1000;
+  var wasOffline = false;
+
   function connect() {
     ws = new WebSocket(WS_URL);
     ws.binaryType = 'arraybuffer';
 
     ws.onopen = function () {
       connected = true;
+      backoff = 1000;
+      if (REMOTE && !wasOffline) hideOverlay();
       var q = outbox; outbox = [];
       for (var i = 0; i < q.length; i++) { try { ws.send(q[i]); } catch (e) { /* ignore */ } }
     };
 
     ws.onmessage = function (ev) {
+      if (typeof ev.data !== 'string') { if (REMOTE) onBinaryRemote(ev.data); return; }
       var msg; try { msg = JSON.parse(ev.data); } catch (e) { return; }
-      if (msg.t === 'res') {
-        var p = pending.get(msg.id); if (!p) return; pending.delete(msg.id);
+      var p;
+      if (!REMOTE && msg.t === 'res') {
+        p = pending.get(msg.id); if (!p) return; pending.delete(msg.id);
         if (msg.ok) p.resolve(msg.result); else p.reject(new Error(msg.error || 'Request failed'));
+      } else if (REMOTE && msg.t === 'result') {
+        p = pending.get(msg.id); if (!p) return; pending.delete(msg.id);
+        if (msg.ok) p.resolve(msg.value); else p.reject(new Error(msg.error || 'Request failed'));
       } else if (msg.t === 'event') {
-        dispatch(msg.channel, msg.data);
+        dispatch(REMOTE ? msg.ch : msg.channel, msg.data);
+      } else if (REMOTE && msg.t === 'presence') {
+        if (msg.online) {
+          // The PC came back: reload so the app (served by the PC) starts fresh.
+          if (wasOffline) { location.reload(); return; }
+          hideOverlay();
+        } else {
+          wasOffline = true;
+          showOverlay('KuroChan is offline — waiting for your PC…');
+        }
       }
     };
 
-    ws.onclose = function () {
+    ws.onclose = function (ev) {
       connected = false;
       // Fail any in-flight requests; the renderer re-issues on the next action
       // (and reconnects below). Reads at startup normally complete on first open.
       pending.forEach(function (p) { try { p.reject(new Error('Backend disconnected')); } catch (e) {} });
       pending.clear();
-      setTimeout(connect, 1000);
+      if (!REMOTE) { setTimeout(connect, 1000); return; }
+      if (ev.code === 4401 || ev.code === 4403) { location.href = '/login'; return; }
+      if (ev.code === 4404) { location.href = '/bind'; return; }
+      if (!wasOffline) showOverlay('Connection lost — reconnecting…');
+      setTimeout(connect, backoff / 2 + Math.random() * backoff / 2);
+      backoff = Math.min(30000, backoff * 2);
     };
 
     ws.onerror = function () { try { ws.close(); } catch (e) {} };
@@ -179,9 +305,9 @@
   connect();
 
   // ── the contract (mirrors preload.js) ────────────────────────────────────────
-  window.kuroBackend = {
+  var backend = {
     // Host capabilities — the web host has no movable/closable app window.
-    capabilities: { windowControls: false },
+    capabilities: { windowControls: false, settings: 'full', binding: 'device' },
 
     // System / config
     closeWindow:      function () { try { window.close(); } catch (e) {} },
@@ -223,6 +349,13 @@
     onSTTVadState: function (fn) { on('stt:vad-state', fn); },
     onSTTError:    function (fn) { on('stt:error', fn); },
 
+    // Remote access (binding this PC to kurochan-server)
+    remoteStatus:     function () { return invoke('remote:status'); },
+    remoteBind:       function (deviceName) { return invoke('remote:bind', { deviceName: deviceName }); },
+    remoteCancelBind: function () { return invoke('remote:cancel-bind'); },
+    remoteUnbind:     function () { return invoke('remote:unbind'); },
+    onRemoteStatus:   function (fn) { on('remote:status-changed', fn); },
+
     // Hotkeys (synthesized locally)
     onToggleMic: function (fn) { on('hotkey:toggle-mic', fn); },
 
@@ -231,4 +364,59 @@
     onModelStatus:    function (fn) { on('model:status', fn); },
     onModelCursorPos: function (fn) { on('model:cursor-pos', fn); },
   };
+
+  if (REMOTE) {
+    // Remote browsers: binding-only settings, no secrets, local lip sync, 16 kHz mic.
+    var notAllowed = function () { return Promise.reject(new Error('Settings can only be changed on the PC.')); };
+    var bootstrap = null;
+    var getBootstrap = function () {
+      if (!bootstrap) bootstrap = invoke('app:bootstrap').catch(function (e) { bootstrap = null; throw e; });
+      return bootstrap;
+    };
+    var assign = {
+      capabilities: { windowControls: false, settings: 'binding-only', binding: 'account' },
+      getConfig:        function () { return Promise.resolve({}); },
+      saveConfig:       notAllowed,
+      resolveModelDir:  function () { return getBootstrap().then(function (b) { return b && b.modelUrl; }); },
+      getServerInfo:    function () { return Promise.resolve({ running: false }); },
+      openFolderDialog: function () { return Promise.resolve(null); },
+      openFileDialog:   function () { return Promise.resolve(null); },
+      copilotAuthStatus:   function () { return Promise.resolve({ loggedIn: false }); },
+      copilotLogin:        notAllowed,
+      copilotListModels:   notAllowed,
+      copilotResetSession: notAllowed,
+      ttsVolume: function (vol) {
+        var v = Math.max(0, Math.min(1, Number(vol) || 0));
+        dispatch('model:set-parameter', { id: 'ParamMouthOpenY', value: v, weight: 1.0 });
+      },
+      sttStart: function (sampleRate) {
+        resetResampler(sampleRate);
+        return invoke('stt:start', { sampleRate: 16000, format: 's16' });
+      },
+      sttAudioChunk: function (buffer) { sendMicRemote(buffer); },
+      remoteStatus:     notAllowed,
+      remoteBind:       notAllowed,
+      remoteCancelBind: notAllowed,
+      remoteUnbind:     notAllowed,
+      onRemoteStatus:   function () {},
+      // Account (kurochan-server) — the only "settings" a remote browser has.
+      accountInfo: function () {
+        return Promise.all([accountInfo(), getBootstrap().catch(function () { return null; })]).then(function (r) {
+          return { username: r[0].username, device: r[0].device, appVersion: r[1] && r[1].appVersion };
+        });
+      },
+      unbindDevice: function () {
+        return accountInfo().then(function (me) { return api('DELETE', '/api/device', me.csrfToken); })
+          .then(function () { location.href = '/bind'; });
+      },
+      logout: function () {
+        return accountInfo().then(function (me) { return api('POST', '/api/auth/logout', me.csrfToken); })
+          .then(function () { location.href = '/login'; });
+      },
+      accountUrl: '/account',
+    };
+    for (var k in assign) if (Object.prototype.hasOwnProperty.call(assign, k)) backend[k] = assign[k];
+  }
+
+  window.kuroBackend = backend;
 })();

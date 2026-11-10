@@ -2,7 +2,8 @@
  * settings.js — injects the settings modal into the DOM and handles its logic (renderer)
  */
 
-import backend from './backend.js';
+import backend, { capabilities } from './backend.js';
+import { DEVICE_BINDING_HTML, initDeviceBinding, initAccountSettings } from './binding.js';
 
 const DEFAULTS = {
   model: {
@@ -69,7 +70,7 @@ const MODAL_HTML = `
   <div class="modal">
     <h3>Settings</h3>
     <div class="modal-body">
-
+${DEVICE_BINDING_HTML}
     <details class="settings-section">
       <summary class="settings-section-title">Model</summary>
       <div class="settings-section-body">
@@ -368,7 +369,17 @@ const MODAL_HTML = `
 `;
 
 export function initSettings() {
+  // Remote browsers may only manage the binding — no other settings.
+  if (capabilities.settings === 'binding-only') {
+    initAccountSettings();
+    return;
+  }
+
   document.body.insertAdjacentHTML('beforeend', MODAL_HTML);
+
+  let binding = null;
+  if (capabilities.binding === 'device') binding = initDeviceBinding();
+  else document.getElementById('binding-section')?.remove();
 
   const modal                    = document.getElementById('settings-modal');
   const modelDirInput            = document.getElementById('model-dir-input');
@@ -503,6 +514,7 @@ export function initSettings() {
     serverPortInput.value   = server.port ?? DEFAULTS.server.port;
     updateServerVisibility();
     loadServerInfo();
+    if (binding) binding.refresh();
     modal.classList.remove('hidden');
   });
 
@@ -589,6 +601,9 @@ export function initSettings() {
         enabled: serverEnabled.checked,
         https:   serverHttps.checked,
         port:    serverPortInput.value !== '' ? Number(serverPortInput.value) : DEFAULTS.server.port,
+      },
+      remote: {
+        deviceName: binding ? binding.deviceName() || undefined : undefined,
       },
     });
     // saveConfig triggers a full reload of every view — nothing after this line runs

@@ -9,7 +9,9 @@ const { contextBridge, ipcRenderer } = require('electron');
 contextBridge.exposeInMainWorld('kuroBackend', {
   // Host capabilities — feature detection for the renderer (not host detection).
   // Electron owns a movable/closable desktop window; the web host does not.
-  capabilities: { windowControls: true },
+  //   settings: 'full' (all sections) | 'binding-only' (remote browsers)
+  //   binding:  'device' (bind/unbind this PC) | 'account' (remote browser: unbind via website)
+  capabilities: { windowControls: true, settings: 'full', binding: 'device' },
 
   // ── System / config ─────────────────────────────────────────────────────
   closeWindow:      () => ipcRenderer.send('close-window'),
@@ -56,6 +58,13 @@ contextBridge.exposeInMainWorld('kuroBackend', {
   // STT push events (main → renderer)
   onSTTVadState: (fn) => ipcRenderer.on('stt:vad-state', (_e, d) => fn(d)),
   onSTTError:    (fn) => ipcRenderer.on('stt:error',     (_e, d) => fn(d)),
+
+  // ── Remote access (kurochan-server binding) ─────────────────────────────
+  remoteStatus:       ()           => ipcRenderer.invoke('remote:status'),
+  remoteBind:         (deviceName) => ipcRenderer.invoke('remote:bind', { deviceName }),
+  remoteCancelBind:   ()           => ipcRenderer.invoke('remote:cancel-bind'),
+  remoteUnbind:       ()           => ipcRenderer.invoke('remote:unbind'),
+  onRemoteStatus:     (fn) => ipcRenderer.on('remote:status-changed', (_e, d) => fn(d)),
 
   // ── Hotkeys (main → renderer) ───────────────────────────────────────────
   onToggleMic: (fn) => ipcRenderer.on('hotkey:toggle-mic', () => fn()),

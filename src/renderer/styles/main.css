@@ -286,6 +286,13 @@ details.settings-subsection[open] > .settings-subsection-title::before { transfo
 #copilot-byok-wireapi-row.hidden,
 #server-fields.hidden { display: none; }
 .server-info { margin: 2px 0 8px; line-height: 1.6; }
+#binding-section .hidden { display: none; }
+.binding-hint { margin-bottom: 8px; line-height: 1.5; }
+.binding-account-line { margin-bottom: 6px; }
+.binding-actions { margin-top: 8px; }
+.binding-links { align-items: center; gap: 6px; }
+.binding-links a { color: #5dade2; text-decoration: none; }
+.binding-links a:hover { text-decoration: underline; }
 .server-url { font-family: 'Consolas', 'Courier New', monospace; color: #2ecc71; }
 .copilot-code {
   font-family: 'Consolas', 'Courier New', monospace;

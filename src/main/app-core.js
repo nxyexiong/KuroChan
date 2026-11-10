@@ -143,11 +143,15 @@ function findModel3(modelDir) {
 // and the web-server broadcaster — so one backend drives the local window and
 // every connected browser at once.
 //
-// A sink is: { send(channel,data), reload(), isAlive():boolean }.
+// A sink is: { send(channel,data,opts), reload(), isAlive():boolean }.
 //   - desktop sink (index.js): send → win.webContents.send; reload → win.reload()
 //   - web sink   (web/server.js): send → WS broadcast; reload → app:reload event
+//   - remote sink (remote/remote.js): send → kurochan-server relay (allowlisted)
 // Each sink serializes as its transport needs (e.g. the web sink base64-encodes
 // the binary tts:chunk); the composite just forwards the raw payload.
+//
+// `opts.to` targets one audience: 'local' = desktop window + LAN web clients,
+// 'remote:<clientId>' = one remote browser. No `to` = everyone.
 const _sinks = new Set();
 
 /** Register a push sink. Returns an unregister function. */
@@ -157,16 +161,16 @@ function registerSink(sink) { _sinks.add(sink); return () => _sinks.delete(sink)
 const _target = {
   isDestroyed: () => false,
   webContents: {
-    send: (channel, data) => {
+    send: (channel, data, opts) => {
       for (const s of _sinks) {
-        try { if (s.isAlive()) s.send(channel, data); } catch { /* ignore one bad sink */ }
+        try { if (s.isAlive()) s.send(channel, data, opts); } catch { /* ignore one bad sink */ }
       }
     },
   },
 };
 
-/** Push an event to all sinks (desktop window + web clients). */
-function pushEvent(channel, data) { _target.webContents.send(channel, data); }
+/** Push an event to all sinks (desktop window + web clients + remote clients). */
+function pushEvent(channel, data, opts) { _target.webContents.send(channel, data, opts); }
 
 /** The composite push target (used by handlers that emit events, e.g. login). */
 function getTarget() { return _target; }
@@ -240,6 +244,18 @@ let _serverInfoProvider = () => ({ running: false });
 function setServerInfoProvider(fn) { _serverInfoProvider = fn; }
 function handleServerInfo() { return _serverInfoProvider(); }
 
+// Remote-access controller (set by index.js; see remote/remote.js).
+let _remote = null;
+function setRemoteController(remote) { _remote = remote; }
+function requireRemote() {
+  if (!_remote) throw new Error('Remote access is not available.');
+  return _remote;
+}
+function handleRemoteStatus()             { return requireRemote().getStatus(); }
+function handleRemoteBind(arg)            { return requireRemote().bind(arg || {}); }
+function handleRemoteCancelBind()         { return requireRemote().cancelBind(); }
+function handleRemoteUnbind()             { return requireRemote().unbind(); }
+
 function handleGetConfig() {
   return readConfig();
 }
@@ -262,6 +278,15 @@ function handleSaveConfig(data) {
     if (prevCopilot.token)     data.llm.copilot.token = prevCopilot.token;
     if (prevCopilot.sessionId) data.llm.copilot.sessionId = prevCopilot.sessionId;
   }
+  // The binding (deviceId / username) is owned by the remote module; only the
+  // device name comes from the form.
+  const prevRemote = prev.remote || {};
+  const remote = { ...(data.remote || {}) };
+  if (!remote.deviceName && prevRemote.deviceName) remote.deviceName = prevRemote.deviceName;
+  if (prevRemote.deviceId) remote.deviceId = prevRemote.deviceId;
+  if (prevRemote.username) remote.username = prevRemote.username;
+  data.remote = remote;
+  const remoteNameChanged = (prevRemote.deviceName || '') !== (remote.deviceName || '');
   const serverChanged = JSON.stringify(prev.server || {}) !== JSON.stringify(data.server || {});
   writeConfig(data);
   configureAllServices(readConfig());
@@ -269,7 +294,7 @@ function handleSaveConfig(data) {
   // Fire the hook AFTER the current call returns (e.g. so a web client's
   // save-config response flushes before the server may restart under it).
   if (_afterSaveHook) {
-    setImmediate(() => { try { _afterSaveHook({ serverChanged }); } catch { /* ignore */ } });
+    setImmediate(() => { try { _afterSaveHook({ serverChanged, remoteNameChanged }); } catch { /* ignore */ } });
   }
   return { ok: true, serverChanged };
 }
@@ -341,10 +366,13 @@ async function handleCopilotResetSession() {
 
 function handleTtsStop()            { stopTTS(); }
 function handleTtsVolume(vol)       { handleVolume(vol); }
-function handleSttStart({ sampleRate } = {}) { return startListening(sampleRate); }
-function handleSttStop()            { stopListening(); }
-function handleSttReady()           { return { available: sttAvailable() }; }
-function handleSttAudioChunk(buffer) { handleAudioChunk(buffer); }
+// `session` = 'local' for the desktop window / LAN web, 'remote:<clientId>' for remote browsers.
+function handleSttStart({ sampleRate, format } = {}, session = 'local') {
+  return startListening(sampleRate, session, format === 's16' ? 's16' : 'f32');
+}
+function handleSttStop(session = 'local')              { stopListening(session); }
+function handleSttReady()                              { return { available: sttAvailable() }; }
+function handleSttAudioChunk(buffer, session = 'local') { handleAudioChunk(buffer, session); }
 
 /** Graceful shutdown — stop the Copilot CLI and drain the Kokoro worker. */
 async function dispose() {
@@ -360,9 +388,10 @@ module.exports = {
   // service lifecycle + broadcast target
   configureAllServices, initServices, getTarget, pushEvent,
   registerSink, reloadAll, dispose,
-  setAfterSaveHook, setServerInfoProvider,
+  setAfterSaveHook, setServerInfoProvider, setRemoteController,
   // handlers
   handleGetConfig, handleSaveConfig, handleChatSend, handleServerInfo,
+  handleRemoteStatus, handleRemoteBind, handleRemoteCancelBind, handleRemoteUnbind,
   handleCopilotAuthStatus, handleCopilotLogin, handleCopilotListModels, handleCopilotResetSession,
   handleTtsStop, handleTtsVolume,
   handleSttStart, handleSttStop, handleSttReady, handleSttAudioChunk,

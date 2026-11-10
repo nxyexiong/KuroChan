@@ -44,6 +44,17 @@ export const STT_VAD_STATE     = 'stt:vad-state';   // { state: 'idle'|'speech'|
 export const STT_ERROR         = 'stt:error';        // { message }
 export const STT_READY         = 'stt:ready';        // { available: boolean }
 
+// ── Remote access (kurochan-server binding) ───────────────────────────────────
+// renderer → main (desktop window / LAN web only; never reachable remotely):
+export const REMOTE_STATUS      = 'remote:status';
+export const REMOTE_BIND        = 'remote:bind';         // { deviceName }
+export const REMOTE_CANCEL_BIND = 'remote:cancel-bind';
+export const REMOTE_UNBIND      = 'remote:unbind';
+// main → renderer (push events):
+export const REMOTE_STATUS_CHANGED = 'remote:status-changed'; // { state, server, deviceName, username, pairing, clients, error }
+// remote browser → PC (relay only):
+export const APP_BOOTSTRAP      = 'app:bootstrap';       // → { modelUrl, sttAvailable, appVersion }
+
 // ── Model ─────────────────────────────────────────────────────────────────────
 // main → renderer (push events):
 export const MODEL_SET_PARAM   = 'model:set-parameter'; // { id, value, weight }

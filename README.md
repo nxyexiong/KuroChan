@@ -147,6 +147,21 @@ HTTPS is therefore **on by default**, using a **self-signed certificate** genera
 
 ---
 
+## Remote access (kuro.abyssaldeath.com)
+
+Bind this PC to your account on **https://kuro.abyssaldeath.com** to use KuroChan from anywhere, without port forwarding. The PC keeps one outbound WSS connection to the server; everything (Copilot, TTS, STT, model files, settings, secrets) stays on the PC.
+
+1. On the PC: ⚙ **Settings → Binding** → (optionally set a device name) → **Bind**. A code like `KURO-ABCD-EFGH` appears.
+2. On the website: log in, open the bind page, and enter the code. The PC switches to **Bound to &lt;username&gt; · Online**.
+3. Open the website from any browser → you get the web version of the app, served live by your PC.
+
+- **One device per account.** Binding always starts on the PC. **Unbind** from PC Settings, the web app's Settings, or the admin site.
+- **In sync.** The PC window and every browser can type or talk at the same time; all of them get every reply and the voice. Each browser drives its own lip sync and mic session.
+- **Restricted.** Remote browsers can chat, talk, and stop speech, but **cannot change any settings** (their Settings only show the binding). Config and secrets are never sent off the PC.
+- The device token is encrypted with Windows DPAPI (`~/.kurochan/remote-token.bin`). The server address is fixed in `src/main/remote/remote-config.js`.
+
+---
+
 ## Release Build (Windows installer)
 
 `build.cmd` produces a distributable NSIS installer under `release/`.
@@ -180,6 +195,7 @@ npm run dist
 | `npm run build:whisper` | Build `whisper_kuro.dll` native addon |
 | `npm run dist` | Production webpack + electron-builder (Windows) |
 | `npm run debug` | Launch with Node inspector and remote DevTools |
+| `npm test` | Unit tests (`node:test`) |
 
 ---
 
@@ -202,6 +218,14 @@ KuroChan/
 │   │   │   ├── server.js             HTTP(S) + WebSocket, static assets, model mount, broadcast
 │   │   │   ├── web-api.js            Browser window.kuroBackend over WebSocket (served, not bundled)
 │   │   │   └── self-signed.js        Cached self-signed TLS cert (phone mic needs HTTPS)
+│   │   ├── remote/                   Remote access via kuro.abyssaldeath.com
+│   │   │   ├── remote.js             Facade — binding state, device link, remote sink, dispatch
+│   │   │   ├── remote-auth.js        Pairing (device-code flow) + DPAPI-encrypted token store
+│   │   │   ├── remote-link.js        Outbound WSS: hello, heartbeat, backoff, close codes
+│   │   │   ├── remote-policy.js      Remote allowlist (invokes + forwarded events)
+│   │   │   ├── remote-tunnel.js      Serves the web app to remote browsers (allowlisted paths)
+│   │   │   ├── remote-codec.js       Binary relay frames
+│   │   │   └── remote-config.js      Fixed server URL + protocol version
 │   │   │
 │   │   ├── chat/                     Chat module (facade → base → builtin)
 │   │   │   ├── chat.js               Facade — selects service, exposes configureChat / handleBuiltinChatMessage

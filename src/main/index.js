@@ -13,8 +13,9 @@
  * hotkey) plus the web server's lifecycle (started/stopped/restarted from the
  * `server` section of the config).
  */
-const { app, BrowserWindow, ipcMain, dialog, session, screen, net, protocol, globalShortcut } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog, session, screen, net, protocol, globalShortcut, safeStorage } = require('electron');
 const path = require('path');
+const os   = require('os');
 
 // Force UTF-8 console output on Windows
 if (process.platform === 'win32') {
@@ -27,6 +28,9 @@ if (process.platform === 'win32') {
 
 const appCore = require('./app-core.js');
 const { startWebServer } = require('./web/server.js');
+const { createRemote } = require('./remote/remote.js');
+
+let _remote = null;         // remote-access controller (kurochan-server binding)
 
 // ── Web companion server lifecycle ────────────────────────────────────────────
 let _webServer = null;      // handle from startWebServer(), or null when stopped
@@ -105,7 +109,10 @@ function createWindow() {
 const desktopSink = {
   isAlive: () => !!(mainWindow && !mainWindow.isDestroyed()),
   reload:  () => { if (mainWindow && !mainWindow.isDestroyed()) mainWindow.reload(); },
-  send:    (channel, data) => { if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send(channel, data); },
+  send:    (channel, data, opts) => {
+    if (opts && opts.to && opts.to !== 'local') return; // targeted at a remote client
+    if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send(channel, data);
+  },
 };
 
 // ── Electron IPC transport (desktop renderer) ─────────────────────────────────
@@ -163,6 +170,11 @@ function registerElectronIpc() {
   ipcMain.handle('stt:stop', () => appCore.handleSttStop());
   ipcMain.on('stt:audio-chunk', (_event, buffer) => appCore.handleSttAudioChunk(buffer));
   ipcMain.handle('stt:ready', () => appCore.handleSttReady());
+
+  ipcMain.handle('remote:status',      () => appCore.handleRemoteStatus());
+  ipcMain.handle('remote:bind',        (_event, arg) => appCore.handleRemoteBind(arg));
+  ipcMain.handle('remote:cancel-bind', () => appCore.handleRemoteCancelBind());
+  ipcMain.handle('remote:unbind',      () => appCore.handleRemoteUnbind());
 }
 
 // ── App lifecycle ─────────────────────────────────────────────────────────────
@@ -178,10 +190,23 @@ app.whenReady().then(async () => {
   appCore.initServices();
   appCore.registerSink(desktopSink);
 
+  // Remote access (kurochan-server): binding + device link + tunnel. Reconnects
+  // on its own if this PC is already bound.
+  _remote = createRemote({
+    appCore,
+    safeStorage,
+    tokenPath:  path.join(os.homedir(), '.kurochan', 'remote-token.bin'),
+    appVersion: app.getVersion(),
+    webRoot:    path.join(__dirname, '..', '..'),
+    webApiPath: path.join(__dirname, 'web', 'web-api.js'),
+  });
+  appCore.setRemoteController(_remote);
+
   // After any save (from desktop OR a browser): restart the web server if its
-  // settings changed, then reload every view.
-  appCore.setAfterSaveHook(async ({ serverChanged }) => {
+  // settings changed, re-announce a renamed device, then reload every view.
+  appCore.setAfterSaveHook(async ({ serverChanged, remoteNameChanged }) => {
     if (serverChanged) await applyWebServer(appCore.readConfig());
+    if (remoteNameChanged && _remote) _remote.onDeviceNameChanged();
     appCore.reloadAll();
   });
 
@@ -232,6 +257,7 @@ app.on('before-quit', (event) => {
   event.preventDefault();
   (async () => {
     if (_webServer) { try { await _webServer.close(); } catch { /* ignore */ } _webServer = null; }
+    if (_remote) { try { _remote.dispose(); } catch { /* ignore */ } _remote = null; }
     try { await appCore.dispose(); } catch { /* ignore */ }
     app.exit(0);
   })();

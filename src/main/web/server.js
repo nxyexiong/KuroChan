@@ -122,7 +122,8 @@ function broadcast(obj) {
 const webSink = {
   isAlive: () => true, // server is up while this sink is registered
   reload: () => broadcast({ t: 'event', channel: 'app:reload', data: {} }),
-  send: (channel, data) => {
+  send: (channel, data, opts) => {
+    if (opts && opts.to && opts.to !== 'local') return; // targeted at a remote client
     if (channel === 'tts:chunk' && data && data.data) {
       const u8 = data.data;
       const b64 = Buffer.from(u8.buffer, u8.byteOffset, u8.byteLength).toString('base64');
@@ -158,6 +159,10 @@ const invokeHandlers = {
   'stt:start':             (arg)      => appCore.handleSttStart(arg),
   'stt:stop':              ()         => appCore.handleSttStop(),
   'stt:ready':             ()         => appCore.handleSttReady(),
+  'remote:status':         ()         => appCore.handleRemoteStatus(),
+  'remote:bind':           (arg)      => appCore.handleRemoteBind(arg),
+  'remote:cancel-bind':    ()         => appCore.handleRemoteCancelBind(),
+  'remote:unbind':         ()         => appCore.handleRemoteUnbind(),
 };
 
 // send-style handlers (fire-and-forget)

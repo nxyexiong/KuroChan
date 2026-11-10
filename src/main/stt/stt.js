@@ -20,11 +20,13 @@ function configureSTT(sttConfig, deps) {
   service.configure(sttConfig, deps);
 }
 
-function sttAvailable()              { return service.available(); }
-function startListening(sampleRate)  { return service.startListening(sampleRate); }
-function stopListening()             { return service.stopListening(); }
-function handleAudioChunk(buffer)    { return service.handleAudioChunk(buffer); }
-function setSTTWindow(win)           { return service.setWindow(win); }
+// `session` identifies the mic source: 'local' (desktop / LAN web) or
+// 'remote:<clientId>' (a remote browser). Each session has its own VAD state.
+function sttAvailable()                                     { return service.available(); }
+function startListening(sampleRate, session = 'local', format = 'f32') { return service.startListening(sampleRate, session, format); }
+function stopListening(session = 'local')                   { return service.stopListening(session); }
+function handleAudioChunk(buffer, session = 'local')        { return service.handleAudioChunk(buffer, session); }
+function setSTTWindow(win)                                  { return service.setWindow(win); }
 function setOnTranscript(fn)         { return service.setOnTranscript(fn); }
 function setOnSpeechStart(fn)        { return service.setOnSpeechStart(fn); }
 
